@@ -65,7 +65,7 @@
   .search-ico{position:absolute;left:11px;top:11px;color:#999;pointer-events:none}
   #q{padding-left:34px}
   .results{margin-top:10px;border:1px solid var(--line);border-radius:10px;max-height:330px;overflow:auto;background:#fff}
-  .res{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid #f0f0f2;cursor:pointer}
+  .res{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid #f0f0f2;cursor:pointer}
   .res:last-child{border-bottom:0}
   .res:hover,.res.kb{background:#fff5f5}
   .res .nm{font-size:14px;font-weight:600}
@@ -73,6 +73,8 @@
   .res .meta a{color:var(--muted)}
   .res .add{color:var(--red);font-weight:700;font-size:13px;white-space:nowrap}
   .res mark{background:#ffe3a3;color:inherit;border-radius:2px}
+  .thumb{width:48px;height:48px;border-radius:8px;border:1px solid var(--line);background:#fff;object-fit:contain;display:block}
+  .item-top.has-img{grid-template-columns:22px 48px 1fr auto}
   .res-empty{padding:14px;color:var(--muted);font-size:14px}
   .chip{display:inline-block;background:#f1f1f3;border-radius:999px;padding:1px 8px;font-size:11.5px;color:#555}
 
@@ -399,6 +401,17 @@ function maskCNPJ(v) {
   if (d.length > 12) out += '-' + d.slice(12, 14);
   return out;
 }
+// foto do produto direto da loja Digital Sat (o número no fim do endereço é o id do produto)
+function productImg(slug, size) {
+  const m = /-(\d+)$/.exec(slug || ''); if (!m) return '';
+  return `https://loja.digitalsat.com.br/imagem/produto/id/${m[1]}/width/${size}/height/${size}/index/0`;
+}
+// imagem cinza usada quando o produto não tem foto ou a loja não responde
+window.JM_NO_IMG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" fill="#f4f4f5"/><g fill="none" stroke="#c7c7cc" stroke-width="2"><rect x="11" y="14" width="26" height="20" rx="3"/><circle cx="19" cy="21" r="3"/><path d="M37 30l-8-8-12 12"/></g></svg>');
+function thumbHTML(slug) {
+  const src = productImg(slug, 120);
+  return src ? `<img class="thumb" src="${src}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=window.JM_NO_IMG">` : '';
+}
 let uid = 1;
 const newId = () => 'i' + (uid++) + Date.now().toString(36);
 
@@ -614,53 +627,71 @@ function renderOrcPages(scale) {
 // ---- Recibo layout ----
 function renderRecPages(scale) {
   const xs = [58.2, 427.5, 540.8];
-  const cv = document.createElement('canvas');
-  cv.width = Math.round(PW * scale); cv.height = Math.round(PH * scale);
-  const ctx = cv.getContext('2d'); ctx.scale(scale, scale); ctx.textBaseline = 'alphabetic';
-  drawHeader(ctx, 'RECIBO');
-  drawClient(ctx, rec);
+  const probe = document.createElement('canvas').getContext('2d');
   const items = rec.items.filter(it => (it.desc || '').trim() || isFinite(parseMoney(it.valor)));
   const list = items.length ? items : [{ desc: '', valor: '' }];
-  // density
-  let fs = 12, lh = 15, minH = 28.3;
-  const sigTopDefault = 587.6;
-  const est = (f, l, m) => { setFont(ctx, f, F_OPEN, true); return list.reduce((a, it) => a + Math.max(m, wrap(ctx, it.desc, xs[1] - xs[0] - 12).length * l + (m - l)), 0); };
-  const top = 373.2, headH = 50.7;
-  const extra = list.length > 1 ? 22 + 30.2 : 0;
-  const maxBody = 700 - 90 - top - headH - extra; // leave room for signature block
-  for (const d of [[12, 15, 28.3], [11, 13.5, 24], [10, 12.5, 20], [9, 11, 17]]) { fs = d[0]; lh = d[1]; minH = d[2]; if (est(fs, lh, minH) <= maxBody) break; }
-  const L = { xs, heads: ['DESCRIÇÃO', 'VALOR'] };
-  let y = drawTableHead(ctx, L, top, headH, 12, 0.25);
-  for (const it of list) {
-    setFont(ctx, fs, F_OPEN, true);
-    const lines = wrap(ctx, it.desc, xs[1] - xs[0] - 12);
-    const h = Math.max(minH, lines.length * lh + (minH - lh));
-    const mid = y + h / 2;
-    ctx.fillStyle = GREY; ctx.textAlign = 'center';
-    const sy = mid - (lines.length - 1) * lh / 2 + fs * 0.36;
-    lines.forEach((ln, k) => ctx.fillText(ln, (xs[0] + xs[1]) / 2, sy + k * lh));
-    const v = parseMoney(it.valor);
-    setFont(ctx, fs, F_ARIAL); ctx.fillText(isFinite(v) ? brl(v) : '', (xs[1] + xs[2]) / 2, mid + fs * 0.36);
-    y += h; hline(ctx, xs[0] - 0.45, xs[2] + 0.45, y, 0.9, GREY);
+  const top1 = 373.2, topN = 225, headH = 50.7, LIMIT = 748;
+  const extra = list.length > 1 ? 22 + 30.2 : 0;     // caixa do total
+  const SIG_DEFAULT = 587.6, SIG_H = 80;             // bloco da assinatura (linha + nome)
+  const sigLimit = 700 - SIG_H + 30;                 // fundo máximo da tabela na última página
+  const rowsAt = (f, l, m) => { setFont(probe, f, F_OPEN, true); return list.map(it => { const lines = wrap(probe, it.desc, xs[1] - xs[0] - 12); return { it, lines, h: Math.max(m, lines.length * l + (m - l)) }; }); };
+  // densidade: tenta caber tudo em uma página; se não couber, quebra em mais páginas
+  const dens = [[12, 15, 28.3], [11, 13.5, 24], [10, 12.5, 20]];
+  let D = dens[0], rows;
+  for (const d of dens) {
+    D = d; rows = rowsAt(...d);
+    if (top1 + headH + rows.reduce((a, r) => a + r.h, 0) + extra + 30 <= sigLimit) break;
   }
-  for (const x of xs) vline(ctx, x, top, y, 0.9, GREY);
-  let bottom = y;
-  if (list.length > 1) bottom = drawTotalBox(ctx, y + 22, recTotal());
-  // signature block (moves down only if the table is long)
-  const shift = Math.max(0, bottom + 30 - sigTopDefault);
-  const sTop = Math.min(sigTopDefault + shift, 690);
-  const dy = sTop - sigTopDefault;
-  if (IMG_SIG_CUSTOM) {
-    // fit the uploaded signature in a 200 x 52 pt box, centred, resting on the line
-    const im = IMG_SIG_CUSTOM, k = Math.min(200 / im.width, 52 / im.height);
-    const w = im.width * k, h = im.height * k;
-    ctx.drawImage(im, 295.7 - w / 2, 628.4 + dy - h, w, h);
+  const pages = []; let cur = { rows: [], first: true }, y = top1 + headH;
+  for (const r of rows) {
+    if (y + r.h > LIMIT && cur.rows.length) { pages.push(cur); cur = { rows: [], first: false }; y = topN + headH; }
+    cur.rows.push(r); y += r.h;
   }
-  hline(ctx, 184.9, 406.6, 629.7 + dy, 0.9, '#000');
-  ctx.fillStyle = '#000'; setFont(ctx, 12.2, F_ARIAL); ctx.textAlign = 'center';
-  ctx.fillText(signerName, 295.7, 659.6 + dy);
-  drawFooter(ctx);
-  return [cv];
+  pages.push(cur);
+  if (y + extra + 30 > sigLimit) pages.push({ rows: [], first: false, tailOnly: true });
+  const [fs, lh] = D;
+  return pages.map((pg, pi) => {
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(PW * scale); cv.height = Math.round(PH * scale);
+    const ctx = cv.getContext('2d'); ctx.scale(scale, scale); ctx.textBaseline = 'alphabetic';
+    drawHeader(ctx, 'RECIBO');
+    let top;
+    if (pg.first) { drawClient(ctx, rec); top = top1; }
+    else { ctx.fillStyle = GREY; setFont(ctx, 11, F_ARIAL); ctx.textAlign = 'left'; ctx.fillText(`Continuação — ${rec.cliente ? rec.cliente + ' — ' : ''}${brDate(rec.data)}`, 59.5, 214); top = topN; }
+    let bottom = top;
+    if (!pg.tailOnly) {
+      const L = { xs, heads: ['DESCRIÇÃO', 'VALOR'] };
+      let yy = drawTableHead(ctx, L, top, headH, 12, 0.25);
+      for (const r of pg.rows) {
+        const mid = yy + r.h / 2;
+        setFont(ctx, fs, F_OPEN, true); ctx.fillStyle = GREY; ctx.textAlign = 'center';
+        const sy = mid - (r.lines.length - 1) * lh / 2 + fs * 0.36;
+        r.lines.forEach((ln, k) => ctx.fillText(ln, (xs[0] + xs[1]) / 2, sy + k * lh));
+        const v = parseMoney(r.it.valor);
+        setFont(ctx, fs, F_ARIAL); ctx.fillText(isFinite(v) ? brl(v) : '', (xs[1] + xs[2]) / 2, mid + fs * 0.36);
+        yy += r.h; hline(ctx, xs[0] - 0.45, xs[2] + 0.45, yy, 0.9, GREY);
+      }
+      for (const x of xs) vline(ctx, x, top, yy, 0.9, GREY);
+      bottom = yy;
+    }
+    if (pi === pages.length - 1) {
+      if (list.length > 1) bottom = drawTotalBox(ctx, pg.tailOnly ? 235 : bottom + 22, recTotal());
+      // assinatura: fica na posição do modelo e só desce se a tabela for longa
+      const sTop = Math.max(pg.tailOnly ? bottom + 40 : SIG_DEFAULT, bottom + 30);
+      const dy = sTop - SIG_DEFAULT;
+      if (IMG_SIG_CUSTOM) {
+        const im = IMG_SIG_CUSTOM, k = Math.min(200 / im.width, 52 / im.height);
+        const w = im.width * k, h = im.height * k;
+        ctx.drawImage(im, 295.7 - w / 2, 628.4 + dy - h, w, h);
+      }
+      hline(ctx, 184.9, 406.6, 629.7 + dy, 0.9, '#000');
+      ctx.fillStyle = '#000'; setFont(ctx, 12.2, F_ARIAL); ctx.textAlign = 'center';
+      ctx.fillText(signerName, 295.7, 659.6 + dy);
+    }
+    if (pages.length > 1) { ctx.fillStyle = '#888'; setFont(ctx, 9, F_ARIAL); ctx.textAlign = 'right'; ctx.fillText(`Página ${pi + 1}/${pages.length}`, 550, 834); }
+    drawFooter(ctx);
+    return cv;
+  });
 }
 
 const renderPages = (scale) => mode === 'orc' ? renderOrcPages(scale) : renderRecPages(scale);
@@ -846,7 +877,7 @@ function runSearch() {
   lastResults = res; kbIndex = -1;
   if (!res.length) { box.innerHTML = `<div class="res-empty">Nenhum produto encontrado. Tente outra palavra ou adicione como item personalizado.</div>`; return; }
   const hi = (name) => { let h = esc(name); for (const t of toks) { if (t.length < 2) continue; const n = norm(name); const i = n.indexOf(t); if (i >= 0) { const raw = name.slice(i, i + t.length); h = h.replace(esc(raw), `<mark>${esc(raw)}</mark>`); } } return h; };
-  box.innerHTML = res.map((p, i) => `<div class="res" role="option" data-i="${i}"><div><div class="nm">${hi(p.name)}</div><div class="meta"><span class="chip">${esc(p.cat)}</span>${priceMemo[p.slug] ? `<span>último valor: R$ ${esc(priceMemo[p.slug])}</span>` : ''}<a href="https://loja.digitalsat.com.br/produto/${esc(p.slug)}" target="_blank" rel="noopener" data-link>ver na loja ↗</a></div></div><span class="add">+ Adicionar</span></div>`).join('') +
+  box.innerHTML = res.map((p, i) => `<div class="res" role="option" data-i="${i}">${thumbHTML(p.slug)}<div><div class="nm">${hi(p.name)}</div><div class="meta"><span class="chip">${esc(p.cat)}</span>${priceMemo[p.slug] ? `<span>último valor: R$ ${esc(priceMemo[p.slug])}</span>` : ''}<a href="https://loja.digitalsat.com.br/produto/${esc(p.slug)}" target="_blank" rel="noopener" data-link>ver na loja ↗</a></div></div><span class="add">+ Adicionar</span></div>`).join('') +
     (total > res.length ? `<div class="res-empty">Mostrando 60 de ${total}. Digite mais palavras para refinar.</div>` : '');
 }
 let sT;
@@ -901,7 +932,7 @@ function renderOrcItems(flashId, focusDesc, focusUnit) {
     const u = parseMoney(it.unit), q = qtyNum(it.qty);
     const sub = isFinite(u) ? brl(u * (q == null ? 1 : q)) : '—';
     return `<div class="item" data-id="${it.id}">
-      <div class="item-top"><span class="item-idx">${i + 1}</span>
+      <div class="item-top${it.slug ? ' has-img' : ''}"><span class="item-idx">${i + 1}</span>${it.slug ? thumbHTML(it.slug) : ''}
         <textarea class="inp item-desc" rows="1" data-f="desc" aria-label="Descrição do item ${i + 1}" placeholder="Descrição">${esc(it.desc)}</textarea>
         <div class="item-ctrl"><button class="icon-btn" type="button" data-a="up" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''}>${ICON_UP}</button><button class="icon-btn" type="button" data-a="down" aria-label="Mover para baixo" ${i === orc.items.length - 1 ? 'disabled' : ''}>${ICON_DN}</button><button class="icon-btn del" type="button" data-a="del" aria-label="Remover item">${ICON_X}</button></div>
       </div>

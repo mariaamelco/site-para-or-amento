@@ -1,0 +1,41 @@
+name: Atualizar catálogo Digital Sat
+
+on:
+  schedule:
+    # Dia 1, às 06:17 (horário de Brasília), a cada 2 meses (jan, mar, mai, jul, set, nov)
+    - cron: '17 9 1 */2 *'
+  workflow_dispatch: {}   # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-catalogo
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Atualizar catalog.json
+        run: node scripts/atualizar-catalogo.mjs | tee resumo.txt
+      - name: Salvar alterações
+        run: |
+          if git diff --quiet -- catalog.json; then
+            echo "Catálogo já estava atualizado."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          git commit -m "Atualiza catálogo Digital Sat ($(date +%Y-%m-%d))" -m "$(grep -E '^(Sitemap|Novos|Catálogo salvo)' resumo.txt)"
+          git push
+      - name: Resumo
+        if: always()
+        run: |
+          { echo '## Atualização do catálogo'; echo '```'; cat resumo.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

@@ -3,7 +3,27 @@
   "headers": [
     {
       "source": "/catalog.json",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
+    },
+    {
+      "source": "/foto/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/foto/:id(\\d+)",
+      "destination": "https://loja.digitalsat.com.br/imagem/produto/id/:id/width/300/height/300/index/0"
     }
   ]
 }

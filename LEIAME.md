@@ -49,3 +49,10 @@ vercel --prod
 - Para rodar na hora: no GitHub, aba **Actions** → **Atualizar catálogo Digital Sat** → **Run workflow**.
 - Para rodar no computador: `node scripts/atualizar-catalogo.mjs` (Node 20 ou mais novo).
 - Proteção: se a loja estiver fora do ar ou a lista vier com menos de 1.000 produtos, o catálogo não é alterado.
+
+## Fotos dos produtos
+
+- Na busca e na lista de itens, as fotos vêm direto da loja Digital Sat.
+- No PDF/PNG do orçamento, as fotos passam pelo endereço `/foto/ID` do próprio site, que a Vercel repassa para a loja (regra `rewrites` no `vercel.json`). Isso é necessário porque o navegador não deixa colocar imagens de outro site dentro do PDF.
+- Por isso, **as fotos no PDF só funcionam no site publicado na Vercel**. Testando no computador com `python3 -m http.server`, o orçamento sai sem fotos (o resto funciona normal).
+- Para tirar as fotos de um orçamento, desmarque "Mostrar fotos dos produtos no orçamento".

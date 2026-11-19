@@ -243,6 +243,7 @@
         <div class="items" id="o-items"></div>
         <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
           <label class="check"><input type="checkbox" id="o-unit-col"> Mostrar coluna de valores unitários no orçamento</label>
+          <label class="check"><input type="checkbox" id="o-photos"> Mostrar fotos dos produtos no orçamento</label>
           <div class="row r2">
             <div><label class="f" for="o-coltitle">Título da coluna de descrição</label><input class="inp" id="o-coltitle" value="DESCRIÇÃO"></div>
             <div><label class="f" for="o-obs">Observação (opcional)</label><textarea class="inp" id="o-obs" rows="1" placeholder="Ex.: fechando o orçamento não cobramos…"></textarea></div>
@@ -416,7 +417,7 @@ let uid = 1;
 const newId = () => 'i' + (uid++) + Date.now().toString(36);
 
 // ---------------- state ----------------
-const defOrc = () => ({ cliente: '', data: todayISO(), cnpjOn: false, cnpj: '', items: [], unitCol: false, colTitle: 'DESCRIÇÃO', obs: '', totMode: 'auto', totManual: '' });
+const defOrc = () => ({ cliente: '', data: todayISO(), cnpjOn: false, cnpj: '', items: [], unitCol: false, colTitle: 'DESCRIÇÃO', obs: '', totMode: 'auto', totManual: '', photos: true });
 const defRec = () => ({ cliente: '', data: todayISO(), cnpjOn: false, cnpj: '', items: [{ id: newId(), desc: '', valor: '' }] });
 let orc = Object.assign(defOrc(), store.get('jm_orc', {}));
 let rec = Object.assign(defRec(), store.get('jm_rec', {}));
@@ -523,6 +524,30 @@ function drawTotalBox(ctx, top, value) {
   return top + h;
 }
 
+// ---- fotos para o documento ----
+// O PDF precisa de imagens do mesmo endereço do site; a Vercel repassa /foto/ID para a loja (vercel.json).
+const PHOTOS = new Map();
+function photoEntry(slug) {
+  const m = /-(\d+)$/.exec(slug || ''); if (!m) return null;
+  let e = PHOTOS.get(m[1]);
+  if (!e) {
+    e = { state: 'loading', img: new Image() };
+    e.done = new Promise(res => {
+      e.img.onload = () => { e.state = e.img.naturalWidth ? 'ok' : 'err'; res(); schedulePreview(); };
+      e.img.onerror = () => { e.state = 'err'; res(); schedulePreview(); };
+    });
+    e.img.decoding = 'async';
+    e.img.src = 'foto/' + m[1];
+    PHOTOS.set(m[1], e);
+  }
+  return e;
+}
+async function ensurePhotos() {
+  if (mode !== 'orc' || !orc.photos) return;
+  const waits = orc.items.map(it => { const e = photoEntry(it.slug); return e && e.done; }).filter(Boolean);
+  await Promise.race([Promise.all(waits), new Promise(r => setTimeout(r, 8000))]);
+}
+
 // ---- Orçamento layout ----
 function layoutOrc() {
   const unit = orc.unitCol;
@@ -533,11 +558,14 @@ function layoutOrc() {
 function rowsOrc(ctx, L, fs, lh, minH) {
   setFont(ctx, fs, F_OPEN, true);
   const dw = L.xs[1] - L.xs[0] - 12;
+  const P = Math.max(22, minH + 4);                // tamanho da foto (pt)
   return orc.items.map(it => {
-    const lines = wrap(ctx, it.desc || '', dw);
-    const h = Math.max(minH, lines.length * lh + (minH - lh));
+    const e = orc.photos ? photoEntry(it.slug) : null;
+    const photo = !!e && e.state !== 'err';
+    const lines = wrap(ctx, it.desc || '', dw - (photo ? P + 10 : 0));
+    const h = Math.max(minH, lines.length * lh + (minH - lh), photo ? P + 6 : 0);
     const u = parseMoney(it.unit);
-    return { lines, h, qty: (it.qty === '' || it.qty == null) ? '' : String(it.qty), val: isFinite(u) ? fmt(u) : '-' };
+    return { lines, h, photo: photo ? e : null, P, qty: (it.qty === '' || it.qty == null) ? '' : String(it.qty), val: isFinite(u) ? fmt(u) : '-' };
   });
 }
 function drawTableHead(ctx, L, top, h, fsHead, sp) {
@@ -599,7 +627,17 @@ function renderOrcPages(scale) {
       for (const r of pg.rows) {
         const mid = yy + r.h / 2;
         setFont(ctx, D[0], F_OPEN, true); ctx.fillStyle = GREY; ctx.textAlign = 'center';
-        const cx0 = (L.xs[0] + L.xs[1]) / 2;
+        let cx0 = (L.xs[0] + L.xs[1]) / 2;
+        if (r.photo) {
+          const x0 = L.xs[0] + 5, P = r.P;
+          if (r.photo.state === 'ok') {
+            const im = r.photo.img, k = Math.min(P / im.naturalWidth, P / im.naturalHeight);
+            const w = im.naturalWidth * k, h = im.naturalHeight * k;
+            ctx.drawImage(im, x0 + (P - w) / 2, mid - h / 2, w, h);
+            ctx.fillStyle = GREY;
+          }
+          cx0 = (x0 + P + 5 + L.xs[1]) / 2;
+        }
         const startY = mid - (r.lines.length - 1) * D[1] / 2 + D[0] * 0.36;
         r.lines.forEach((ln, k) => ctx.fillText(ln, cx0, startY + k * D[1]));
         ctx.fillText(r.qty, (L.xs[1] + L.xs[2]) / 2, mid + D[0] * 0.36);
@@ -790,7 +828,7 @@ function showImages(pages, msg) {
 async function withBusy(btn, fn) {
   const btns = ['dl-pdf', 'dl-png', 'copy-img'].map($);
   btns.forEach(b => b.disabled = true);
-  try { await ready; await fn(); } catch (e) { console.error(e); setStatus('Não foi possível gerar o arquivo.', 'err'); }
+  try { await ready; await ensurePhotos(); await fn(); } catch (e) { console.error(e); setStatus('Não foi possível gerar o arquivo.', 'err'); }
   finally { btns.forEach(b => b.disabled = false); }
 }
 $('dl-pdf').addEventListener('click', () => withBusy($('dl-pdf'), async () => {
@@ -1018,7 +1056,7 @@ function bindField(id, obj, key, opts = {}) {
 const O = () => orc, R = () => rec;
 bindField('o-cliente', O, 'cliente'); bindField('o-data', O, 'data'); bindField('o-cnpj', O, 'cnpj', { mask: maskCNPJ });
 bindField('o-cnpj-on', O, 'cnpjOn', { after: v => $('o-cnpj-wrap').classList.toggle('hidden', !v) });
-bindField('o-unit-col', O, 'unitCol'); bindField('o-coltitle', O, 'colTitle'); bindField('o-obs', O, 'obs', { after: () => autoGrow($('o-obs')) });
+bindField('o-unit-col', O, 'unitCol'); bindField('o-photos', O, 'photos'); bindField('o-coltitle', O, 'colTitle'); bindField('o-obs', O, 'obs', { after: () => autoGrow($('o-obs')) });
 bindField('o-total', O, 'totManual');
 bindField('r-cliente', R, 'cliente'); bindField('r-data', R, 'data'); bindField('r-cnpj', R, 'cnpj', { mask: maskCNPJ });
 bindField('r-cnpj-on', R, 'cnpjOn', { after: v => $('r-cnpj-wrap').classList.toggle('hidden', !v) });
@@ -1054,7 +1092,7 @@ $('reset').addEventListener('click', () => {
 function syncInputs() {
   const set = (id, v) => { const el = $(id); if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; };
   set('o-cliente', orc.cliente); set('o-data', orc.data); set('o-cnpj-on', orc.cnpjOn); set('o-cnpj', orc.cnpj);
-  set('o-unit-col', orc.unitCol); set('o-coltitle', orc.colTitle); set('o-obs', orc.obs); set('o-total', orc.totManual);
+  set('o-unit-col', orc.unitCol); set('o-photos', orc.photos); set('o-coltitle', orc.colTitle); set('o-obs', orc.obs); set('o-total', orc.totManual);
   set('r-cliente', rec.cliente); set('r-data', rec.data); set('r-cnpj-on', rec.cnpjOn); set('r-cnpj', rec.cnpj);
   $('o-cnpj-wrap').classList.toggle('hidden', !orc.cnpjOn); $('r-cnpj-wrap').classList.toggle('hidden', !rec.cnpjOn);
   setTotModeSilent(orc.totMode);

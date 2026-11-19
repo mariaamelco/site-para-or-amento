@@ -53,6 +53,6 @@ vercel --prod
 ## Fotos dos produtos
 
 - Na busca e na lista de itens, as fotos vêm direto da loja Digital Sat.
-- No PDF/PNG do orçamento, as fotos passam pelo endereço `/foto/ID` do próprio site, que a Vercel repassa para a loja (regra `rewrites` no `vercel.json`). Isso é necessário porque o navegador não deixa colocar imagens de outro site dentro do PDF.
+- No PDF/PNG do orçamento, as fotos ficam numa coluna própria ("FOTO") à esquerda da descrição e passam pelo endereço `/foto/ID` do próprio site, que a Vercel repassa para a loja (regra `rewrites` no `vercel.json`). Isso é necessário porque o navegador não deixa colocar imagens de outro site dentro do PDF.
 - Por isso, **as fotos no PDF só funcionam no site publicado na Vercel**. Testando no computador com `python3 -m http.server`, o orçamento sai sem fotos (o resto funciona normal).
 - Para tirar as fotos de um orçamento, desmarque "Mostrar fotos dos produtos no orçamento".

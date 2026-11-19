@@ -533,7 +533,11 @@ function photoEntry(slug) {
   if (!e) {
     e = { state: 'loading', img: new Image() };
     e.done = new Promise(res => {
-      e.img.onload = () => { e.state = e.img.naturalWidth ? 'ok' : 'err'; res(); schedulePreview(); };
+      e.img.onload = () => {
+        if (!e.img.naturalWidth) e.state = 'err';
+        else { e.state = 'ok'; try { e.img = trimWhite(e.img); } catch (err) {} }
+        res(); schedulePreview();
+      };
       e.img.onerror = () => { e.state = 'err'; res(); schedulePreview(); };
     });
     e.img.decoding = 'async';
@@ -541,6 +545,25 @@ function photoEntry(slug) {
     PHOTOS.set(m[1], e);
   }
   return e;
+}
+// corta a margem branca das fotos da loja para o produto ocupar a caixinha
+function trimWhite(im) {
+  const W = im.naturalWidth, H = im.naturalHeight;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0);
+  const px = x.getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) {
+    const i = (y * W + xx) * 4;
+    if (px[i + 3] > 20 && (px[i] < 240 || px[i + 1] < 240 || px[i + 2] < 240)) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return im;
+  const pad = 2; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  const ox = o.getContext('2d'); ox.fillStyle = '#fff'; ox.fillRect(0, 0, o.width, o.height);
+  ox.drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  o.naturalWidth = o.width; o.naturalHeight = o.height;
+  return o;
 }
 async function ensurePhotos() {
   if (mode !== 'orc' || !orc.photos) return;
@@ -551,18 +574,23 @@ async function ensurePhotos() {
 // ---- Orçamento layout ----
 function layoutOrc() {
   const unit = orc.unitCol;
-  const xs = unit ? [45.7, 330.0, 430.0, 549.8] : [65.7, 359.7, 529.8];
-  const heads = unit ? [orc.colTitle || 'DESCRIÇÃO', 'QUANTIDADE', 'VALOR UNIT. (R$)'] : [orc.colTitle || 'DESCRIÇÃO', 'QUANTIDADE'];
-  return { xs, heads, unit };
+  // coluna "FOTO" só aparece se a opção estiver ligada e houver produto da loja com foto
+  const photo = orc.photos && orc.items.some(it => { const e = photoEntry(it.slug); return e && e.state !== 'err'; });
+  let xs = unit ? [45.7, 330.0, 430.0, 549.8] : [65.7, 359.7, 529.8];
+  if (photo) xs = unit ? [45.7, 103.7, 340.0, 440.0, 549.8] : [45.7, 103.7, 429.8, 549.8];
+  const heads = [orc.colTitle || 'DESCRIÇÃO', 'QUANTIDADE'];
+  if (unit) heads.push('VALOR UNIT. (R$)');
+  if (photo) heads.unshift('FOTO');
+  return { xs, heads, unit, photo, d: photo ? 1 : 0 };
 }
 function rowsOrc(ctx, L, fs, lh, minH) {
   setFont(ctx, fs, F_OPEN, true);
-  const dw = L.xs[1] - L.xs[0] - 12;
-  const P = Math.max(22, minH + 4);                // tamanho da foto (pt)
+  const d = L.d, dw = L.xs[d + 1] - L.xs[d] - 12;
+  const P = Math.min(L.xs[1] - L.xs[0] - 12, minH + 6); // tamanho da foto (pt), diminui junto com o texto
   return orc.items.map(it => {
-    const e = orc.photos ? photoEntry(it.slug) : null;
+    const e = L.photo ? photoEntry(it.slug) : null;
     const photo = !!e && e.state !== 'err';
-    const lines = wrap(ctx, it.desc || '', dw - (photo ? P + 10 : 0));
+    const lines = wrap(ctx, it.desc || '', dw);
     const h = Math.max(minH, lines.length * lh + (minH - lh), photo ? P + 6 : 0);
     const u = parseMoney(it.unit);
     return { lines, h, photo: photo ? e : null, P, qty: (it.qty === '' || it.qty == null) ? '' : String(it.qty), val: isFinite(u) ? fmt(u) : '-' };
@@ -627,21 +655,16 @@ function renderOrcPages(scale) {
       for (const r of pg.rows) {
         const mid = yy + r.h / 2;
         setFont(ctx, D[0], F_OPEN, true); ctx.fillStyle = GREY; ctx.textAlign = 'center';
-        let cx0 = (L.xs[0] + L.xs[1]) / 2;
-        if (r.photo) {
-          const x0 = L.xs[0] + 5, P = r.P;
-          if (r.photo.state === 'ok') {
-            const im = r.photo.img, k = Math.min(P / im.naturalWidth, P / im.naturalHeight);
-            const w = im.naturalWidth * k, h = im.naturalHeight * k;
-            ctx.drawImage(im, x0 + (P - w) / 2, mid - h / 2, w, h);
-            ctx.fillStyle = GREY;
-          }
-          cx0 = (x0 + P + 5 + L.xs[1]) / 2;
+        const d = L.d, cx0 = (L.xs[d] + L.xs[d + 1]) / 2;
+        if (r.photo && r.photo.state === 'ok') {
+          const im = r.photo.img, P = r.P, k = Math.min(P / im.naturalWidth, P / im.naturalHeight);
+          const w = im.naturalWidth * k, h = im.naturalHeight * k;
+          ctx.drawImage(im, (L.xs[0] + L.xs[1]) / 2 - w / 2, mid - h / 2, w, h);
         }
         const startY = mid - (r.lines.length - 1) * D[1] / 2 + D[0] * 0.36;
         r.lines.forEach((ln, k) => ctx.fillText(ln, cx0, startY + k * D[1]));
-        ctx.fillText(r.qty, (L.xs[1] + L.xs[2]) / 2, mid + D[0] * 0.36);
-        if (L.unit) ctx.fillText(r.val, (L.xs[2] + L.xs[3]) / 2, mid + D[0] * 0.36);
+        ctx.fillText(r.qty, (L.xs[d + 1] + L.xs[d + 2]) / 2, mid + D[0] * 0.36);
+        if (L.unit) ctx.fillText(r.val, (L.xs[d + 2] + L.xs[d + 3]) / 2, mid + D[0] * 0.36);
         yy += r.h;
         hline(ctx, L.xs[0] - 0.45, L.xs[L.xs.length - 1] + 0.45, yy, 0.9, GREY);
       }

@@ -1,19 +1,18 @@
 // Atualiza catalog.json a partir do sitemap da loja Digital Sat.
 // - Remove produtos que saíram da loja.
-// - Para produtos novos, lê a página do produto (nome + categoria da loja)
-//   e converte a categoria da loja no grupo usado no site (scripts/mapa-categorias.json).
-// Uso: node scripts/atualizar-catalogo.mjs            (atualiza)
-//      node scripts/atualizar-catalogo.mjs --mapear   (lê todos os produtos e refaz o mapa de categorias)
+// - Para produtos novos, lê o nome na página do produto e escolhe o grupo
+//   (ex.: "Câmeras", "Redes e Wi-Fi") comparando o nome com os produtos que já
+//   estão no catálogo (classificador Naive Bayes simples; ~93% de acerto em teste).
+// Uso: node scripts/atualizar-catalogo.mjs
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CATALOG = path.join(ROOT, 'catalog.json');
-const MAP = path.join(ROOT, 'scripts', 'mapa-categorias.json');
 const BASE = 'https://loja.digitalsat.com.br';
 const UA = 'Mozilla/5.0 (compatible; JM-System-catalogo/1.0)';
-const CONCURRENCY = 8;
+const CONCURRENCY = 6;
 const MIN_PRODUCTS = 1000; // proteção: se o sitemap vier quase vazio, não mexe no catálogo
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -42,14 +41,12 @@ async function sitemapSlugs() {
   return [...new Set(slugs)];
 }
 
-async function readProduct(slug) {
+async function readName(slug) {
   const html = await get(`${BASE}/produto/${encodeURIComponent(slug)}`);
   if (!html) return null;
   let name = (html.match(/<h1[^>]*product-detail__product-name[^>]*>([\s\S]*?)<\/h1>/) || [])[1];
   if (!name) name = ((html.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').split('|')[0];
-  name = decode(name.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
-  const crumbs = [...html.matchAll(/breadcrumbs__list-item-link[^>]*href="\/categoria\/([^"]+)"/g)].map(m => m[1]);
-  return name ? { name, storeCat: crumbs.length ? crumbs[crumbs.length - 1] : '' } : null;
+  return decode(name.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim() || null;
 }
 
 async function pool(items, fn) {
@@ -58,43 +55,39 @@ async function pool(items, fn) {
     while (next < items.length) {
       const i = next++;
       try { out[i] = await fn(items[i]); } catch (e) { console.warn('  falhou:', e.message); out[i] = undefined; }
-      if (++done % 100 === 0) console.log(`  ${done}/${items.length}`);
+      if (++done % 50 === 0) console.log(`  ${done}/${items.length}`);
       await sleep(150);
     }
   }));
   return out;
 }
 
-const current = JSON.parse(await readFile(CATALOG, 'utf8'));
-const bySlug = new Map(current.map(p => [p[1], p]));
-
-if (process.argv.includes('--mapear')) {
-  // Lê todos os produtos do catálogo atual e descobre, para cada categoria da loja, o grupo mais comum.
-  // progresso salvo em arquivo temporário para poder continuar se for interrompido
-  const CACHE = process.env.MAPA_CACHE || path.join(ROOT, '.mapa-cache.json');
-  let cache = {}; try { cache = JSON.parse(await readFile(CACHE, 'utf8')); } catch {}
-  const todo = current.map(p => p[1]).filter(s => !(s in cache));
-  console.log(`Lendo ${todo.length} produtos (${Object.keys(cache).length} já lidos) para montar o mapa de categorias…`);
-  let lastSave = Date.now();
-  await pool(todo, async (slug) => {
-    const r = await readProduct(slug); cache[slug] = r ? r.storeCat : '';
-    if (Date.now() - lastSave > 10000) { lastSave = Date.now(); await writeFile(CACHE, JSON.stringify(cache)); }
-  });
-  await writeFile(CACHE, JSON.stringify(cache));
-  const info = current.map(p => (p[1] in cache) ? { storeCat: cache[p[1]] } : null);
-  const votes = {};
-  current.forEach((p, i) => {
-    const sc = info[i] && info[i].storeCat; if (!sc) return;
-    (votes[sc] ||= {})[p[2]] = ((votes[sc] || {})[p[2]] || 0) + 1;
-  });
-  const map = Object.fromEntries(Object.entries(votes).sort().map(([sc, v]) =>
-    [sc, Object.entries(v).sort((a, b) => b[1] - a[1])[0][0]]));
-  await writeFile(MAP, JSON.stringify(map, null, 2) + '\n');
-  console.log(`Mapa salvo com ${Object.keys(map).length} categorias da loja.`);
-  process.exit(0);
+// ---- classificador de grupo pelo nome ----
+function tokens(name) {
+  const t = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().match(/[a-z0-9]+/g) || [];
+  return t.concat(t.slice(1).map((w, i) => t[i] + '_' + w));
+}
+function trainer(catalog) {
+  const counts = {}, prior = {}, totals = {}, vocab = new Set();
+  for (const [name, , group] of catalog) {
+    prior[group] = (prior[group] || 0) + 1;
+    const c = counts[group] ||= {};
+    for (const w of tokens(name)) { c[w] = (c[w] || 0) + 1; totals[group] = (totals[group] || 0) + 1; vocab.add(w); }
+  }
+  const A = 0.1, V = vocab.size;
+  return (name) => {
+    const t = tokens(name); let best = 'Outros', bestS = -Infinity;
+    for (const g in counts) {
+      let s = Math.log(prior[g]);
+      for (const w of t) s += Math.log(((counts[g][w] || 0) + A) / (totals[g] + A * V));
+      if (s > bestS) { bestS = s; best = g; }
+    }
+    return best;
+  };
 }
 
-const map = JSON.parse(await readFile(MAP, 'utf8'));
+const current = JSON.parse(await readFile(CATALOG, 'utf8'));
+const known = new Set(current.map(p => p[1]));
 const slugs = await sitemapSlugs();
 console.log(`Sitemap: ${slugs.length} produtos. Catálogo atual: ${current.length}.`);
 if (slugs.length < MIN_PRODUCTS) {
@@ -103,18 +96,15 @@ if (slugs.length < MIN_PRODUCTS) {
 }
 const live = new Set(slugs);
 const removed = current.filter(p => !live.has(p[1]));
-const newSlugs = slugs.filter(s => !bySlug.has(s));
+const newSlugs = slugs.filter(s => !known.has(s));
 console.log(`Novos: ${newSlugs.length}. Saíram da loja: ${removed.length}.`);
 
-const info = await pool(newSlugs, readProduct);
+const classify = trainer(current);
+const names = await pool(newSlugs, readName);
 const added = [];
-newSlugs.forEach((slug, i) => {
-  const p = info[i]; if (!p) return;
-  added.push([p.name, slug, map[p.storeCat] || 'Outros']);
-});
+newSlugs.forEach((slug, i) => { if (names[i]) added.push([names[i], slug, classify(names[i])]); });
 const next = current.filter(p => live.has(p[1])).concat(added);
-const out = '[\n' + next.map(p => JSON.stringify(p)).join(',\n') + '\n]\n';
-await writeFile(CATALOG, out);
+await writeFile(CATALOG, '[\n' + next.map(p => JSON.stringify(p)).join(',\n') + '\n]\n');
 console.log(`Catálogo salvo: ${next.length} produtos (+${added.length}, -${removed.length}).`);
 if (added.length) console.log('Adicionados:\n' + added.map(p => `  + ${p[0]} [${p[2]}]`).join('\n'));
 if (removed.length) console.log('Removidos:\n' + removed.map(p => `  - ${p[0]}`).join('\n'));

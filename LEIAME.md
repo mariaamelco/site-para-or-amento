@@ -40,3 +40,12 @@ vercel --prod
 - Para trocar, edite as constantes `USER` e `PASS` no início do segundo `<script>` do `index.html` (usuário em minúsculas).
 - O login fica salvo até fechar a aba; marcando "Manter conectado neste aparelho", fica salvo até clicar em **Sair**.
 - Atenção: como o site é estático (sem servidor), o login só impede o acesso casual. Quem abrir o código-fonte da página consegue ver a senha e o catálogo. Não use essa senha em outros lugares.
+
+## Atualização automática do catálogo
+
+- O arquivo `.github/workflows/atualizar-catalogo.yml` roda no GitHub Actions **no dia 1 de janeiro, março, maio, julho, setembro e novembro** (a cada 2 meses).
+- Ele lê a lista de produtos da loja Digital Sat (`sitemap_produtos.xml`), tira do `catalog.json` os produtos que saíram da loja e acrescenta os novos, já com o grupo (Câmeras, Redes e Wi-Fi…) escolhido pelo nome do produto.
+- Se algo mudou, ele grava o novo `catalog.json` no repositório; se a Vercel estiver ligada ao repositório, o site é publicado de novo sozinho.
+- Para rodar na hora: no GitHub, aba **Actions** → **Atualizar catálogo Digital Sat** → **Run workflow**.
+- Para rodar no computador: `node scripts/atualizar-catalogo.mjs` (Node 20 ou mais novo).
+- Proteção: se a loja estiver fora do ar ou a lista vier com menos de 1.000 produtos, o catálogo não é alterado.

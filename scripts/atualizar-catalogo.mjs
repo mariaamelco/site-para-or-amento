@@ -13,14 +13,14 @@ const CATALOG = path.join(ROOT, 'catalog.json');
 const MAP = path.join(ROOT, 'scripts', 'mapa-categorias.json');
 const BASE = 'https://loja.digitalsat.com.br';
 const UA = 'Mozilla/5.0 (compatible; JM-System-catalogo/1.0)';
-const CONCURRENCY = 4;
+const CONCURRENCY = 8;
 const MIN_PRODUCTS = 1000; // proteção: se o sitemap vier quase vazio, não mexe no catálogo
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function get(url, tries = 4) {
   for (let i = 1; ; i++) {
     try {
-      const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR' } });
+      const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR' }, signal: AbortSignal.timeout(30000) });
       if (r.status === 404) return null;
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.text();
@@ -70,8 +70,18 @@ const bySlug = new Map(current.map(p => [p[1], p]));
 
 if (process.argv.includes('--mapear')) {
   // Lê todos os produtos do catálogo atual e descobre, para cada categoria da loja, o grupo mais comum.
-  console.log(`Lendo ${current.length} produtos para montar o mapa de categorias…`);
-  const info = await pool(current.map(p => p[1]), readProduct);
+  // progresso salvo em arquivo temporário para poder continuar se for interrompido
+  const CACHE = process.env.MAPA_CACHE || path.join(ROOT, '.mapa-cache.json');
+  let cache = {}; try { cache = JSON.parse(await readFile(CACHE, 'utf8')); } catch {}
+  const todo = current.map(p => p[1]).filter(s => !(s in cache));
+  console.log(`Lendo ${todo.length} produtos (${Object.keys(cache).length} já lidos) para montar o mapa de categorias…`);
+  let lastSave = Date.now();
+  await pool(todo, async (slug) => {
+    const r = await readProduct(slug); cache[slug] = r ? r.storeCat : '';
+    if (Date.now() - lastSave > 10000) { lastSave = Date.now(); await writeFile(CACHE, JSON.stringify(cache)); }
+  });
+  await writeFile(CACHE, JSON.stringify(cache));
+  const info = current.map(p => (p[1] in cache) ? { storeCat: cache[p[1]] } : null);
   const votes = {};
   current.forEach((p, i) => {
     const sc = info[i] && info[i].storeCat; if (!sc) return;

@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J&amp;M System — Orçamentos e Recibos</title>
+<script>try{if(sessionStorage.getItem('jm_auth')==='1'||localStorage.getItem('jm_auth')==='1')document.documentElement.classList.add('authed');}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#c43333; --red-d:#a52828; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e3e6;
+    --bg:#f4f4f5; --card:#fff; --soft:#f8f8f9; --ok:#1f7a4a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  button,input,select,textarea{font:inherit;color:inherit}
+  header.top{background:#000;color:#fff;position:sticky;top:0;z-index:20;border-bottom:4px solid var(--red)}
+  .top-in{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.14em;white-space:nowrap}
+  .brand svg{flex:none}
+  .brand b{color:#ff3131;font-weight:500}
+  .brand small{display:block;font-size:10px;letter-spacing:.12em;color:#ff3131;font-weight:400}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tab{background:transparent;border:1px solid #444;color:#ddd;padding:8px 16px;border-radius:999px;cursor:pointer;font-weight:600}
+  .tab[aria-selected="true"]{background:var(--red);border-color:var(--red);color:#fff}
+  .tab:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+  main{max-width:1400px;margin:0 auto;padding:18px 16px 90px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+  @media (max-width:980px){main{grid-template-columns:1fr}}
+  .panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{margin:0 0 12px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+  .card h2 .n{background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-grid;place-items:center;font-size:11px;letter-spacing:0}
+  label.f{display:block;font-size:13px;color:var(--muted);margin:0 0 4px;font-weight:600}
+  .inp{width:100%;border:1px solid #d4d4d8;border-radius:8px;padding:9px 11px;background:#fff;min-height:40px}
+  .inp:focus{outline:2px solid rgba(196,51,51,.35);border-color:var(--red)}
+  textarea.inp{resize:vertical;min-height:40px}
+  .row{display:grid;gap:10px}
+  .r2{grid-template-columns:1fr 1fr}
+  .r-date{grid-template-columns:1fr 170px}
+  @media (max-width:520px){.r2,.r-date{grid-template-columns:1fr}}
+  .check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none;margin:2px 0}
+  .check input{width:18px;height:18px;accent-color:var(--red)}
+  .hint{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .hidden{display:none!important}
+
+  .btn{border:1px solid #d4d4d8;background:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;min-height:38px;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:var(--soft)}
+  .btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+  .btn.primary:hover{background:var(--red-d)}
+  .btn.dark{background:#111;border-color:#111;color:#fff}
+  .btn.dark:hover{background:#333}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn.sm{padding:5px 10px;min-height:32px;font-size:13px}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* search */
+  .search-wrap{position:relative}
+  .search-bar{display:grid;grid-template-columns:1fr 200px;gap:8px}
+  @media (max-width:520px){.search-bar{grid-template-columns:1fr}}
+  .search-ico{position:absolute;left:11px;top:11px;color:#999;pointer-events:none}
+  #q{padding-left:34px}
+  .results{margin-top:10px;border:1px solid var(--line);border-radius:10px;max-height:330px;overflow:auto;background:#fff}
+  .res{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid #f0f0f2;cursor:pointer}
+  .res:last-child{border-bottom:0}
+  .res:hover,.res.kb{background:#fff5f5}
+  .res .nm{font-size:14px;font-weight:600}
+  .res .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .res .meta a{color:var(--muted)}
+  .res .add{color:var(--red);font-weight:700;font-size:13px;white-space:nowrap}
+  .res mark{background:#ffe3a3;color:inherit;border-radius:2px}
+  .res-empty{padding:14px;color:var(--muted);font-size:14px}
+  .chip{display:inline-block;background:#f1f1f3;border-radius:999px;padding:1px 8px;font-size:11.5px;color:#555}
+
+  /* items */
+  .items{display:flex;flex-direction:column;gap:8px}
+  .item{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--soft);display:grid;grid-template-columns:1fr;gap:8px}
+  .item.flash{animation:fl 1.1s ease}
+  @keyframes fl{0%{background:#ffe9e9;border-color:var(--red)}100%{background:var(--soft)}}
+  .item-top{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:start}
+  .item-idx{font-size:12px;color:var(--muted);font-weight:700;padding-top:10px;text-align:center}
+  .item-desc{min-height:40px}
+  .item-ctrl{display:flex;gap:2px}
+  .icon-btn{width:32px;height:32px;border:0;background:transparent;border-radius:6px;cursor:pointer;color:#666;display:grid;place-items:center}
+  .icon-btn:hover{background:#ececef;color:#000}
+  .icon-btn.del:hover{background:#ffe5e5;color:var(--red)}
+  .item-nums{display:grid;grid-template-columns:22px 110px 150px 1fr;gap:8px;align-items:end}
+  .item-nums .sub{font-size:13px;color:var(--muted);text-align:right;padding-bottom:10px}
+  .item-nums .sub b{color:var(--ink)}
+  @media (max-width:520px){.item-nums{grid-template-columns:22px 1fr 1fr}.item-nums .sub{grid-column:2/4;text-align:left;padding:0}}
+  .lbl-s{font-size:11.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:3px}
+  .money{position:relative}
+  .money span{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#888;font-size:13px;pointer-events:none}
+  .money input{padding-left:32px}
+  .empty-items{border:1px dashed #d4d4d8;border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:14px}
+
+  .total-box{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#111;color:#fff;border-radius:10px;padding:12px 14px;flex-wrap:wrap}
+  .total-box .t{font-size:13px;color:#bbb}
+  .total-box .v{font-size:22px;font-weight:700;letter-spacing:.01em}
+  .seg{display:inline-flex;border:1px solid #d4d4d8;border-radius:8px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:7px 12px;cursor:pointer;font-size:13px;font-weight:600}
+  .seg button[aria-pressed="true"]{background:#111;color:#fff}
+
+  /* preview */
+  .preview{position:sticky;top:78px}
+  @media (max-width:980px){.preview{position:static}}
+  .pv-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .pv-head h3{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .pages{display:flex;flex-direction:column;gap:14px;align-items:center;max-height:calc(100vh - 170px);overflow:auto;padding:4px}
+  @media (max-width:980px){.pages{max-height:none}}
+  .pages canvas{width:100%;max-width:640px;height:auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,0,.05);border-radius:2px}
+  .pg-note{font-size:12px;color:var(--muted)}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);backdrop-filter:blur(6px);z-index:30}
+  .bar-in{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .bar-in .sp{flex:1}
+  .status{font-size:13px;color:var(--muted)}
+  .status.ok{color:var(--ok)}
+  .status.err{color:var(--red)}
+
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal-in{background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:92vh;overflow:auto;padding:16px}
+  .modal-in h4{margin:0 0 6px}
+  .modal-in img{width:100%;border:1px solid var(--line);margin:10px 0}
+  .sig-prev{display:flex;align-items:center;gap:12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .sig-drop{display:flex;align-items:center;gap:14px;border:2px dashed #cfcfd4;border-radius:12px;padding:14px;background:var(--soft);cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+  .sig-drop:hover,.sig-drop.over{border-color:var(--red);background:#fff6f6}
+  .sig-drop:focus-within{outline:2px solid rgba(196,51,51,.35);outline-offset:2px}
+  .sig-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .sig-thumb{flex:none;width:170px;height:70px;background:#fff;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;overflow:hidden;
+    background-image:linear-gradient(45deg,#f3f3f5 25%,transparent 25%),linear-gradient(-45deg,#f3f3f5 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f3f3f5 75%),linear-gradient(-45deg,transparent 75%,#f3f3f5 75%);
+    background-size:12px 12px;background-position:0 0,0 6px,6px -6px,-6px 0}
+  .sig-thumb img{max-width:94%;max-height:90%}
+  .sig-thumb em{font-style:normal;font-size:12px;color:var(--muted)}
+  .sig-txt b{display:block;font-size:14px}
+  .sig-txt span{font-size:12.5px;color:var(--muted)}
+  .sig-up{color:var(--red);font-weight:700}
+  @media (max-width:520px){.sig-drop{flex-direction:column;align-items:stretch;text-align:center}.sig-thumb{width:100%}}
+  @media (max-width:560px){
+    header.top{position:static}
+    .top-in{gap:10px}
+    .tabs{margin-left:0;width:100%}
+    .tab{flex:1;padding:7px 8px}
+    main{padding-bottom:140px}
+    .bar-in{gap:6px;padding:8px 10px}
+    .bar-in .btn{padding:6px 10px;font-size:13.5px;min-height:36px}
+    .bar-in .sp{display:none}
+    .card{padding:14px}
+  }
+  .hint a{color:var(--red)}
+  /* login */
+  html:not(.authed) header.top, html:not(.authed) main, html:not(.authed) .bar{display:none}
+  html.authed .login{display:none}
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:#000;background:radial-gradient(circle at 50% 0,#2a0b0b 0,#000 65%)}
+  .login-card{width:100%;max-width:380px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .login-top{background:#000;color:#fff;border-bottom:4px solid var(--red);padding:22px 20px;display:flex;justify-content:center}
+  .login-form{padding:22px 20px;display:flex;flex-direction:column;gap:12px}
+  .login-form h1{margin:0;font-size:18px}
+  .login-form p{margin:0;color:var(--muted);font-size:13.5px}
+  .login-err{color:var(--red);font-size:13px;min-height:18px}
+  .login-form .btn{justify-content:center;min-height:42px}
+  .tabs .btn.logout{background:transparent;border-color:#444;color:#bbb;border-radius:999px;min-height:0;padding:8px 14px}
+  .tabs .btn.logout:hover{background:#222;color:#fff}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="login" id="login">
+  <div class="login-card">
+    <div class="login-top">
+    <div class="brand">
+      <svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1.5c4.5 0 8.2 1 11 2.6v10.3c0 7.2-5.1 13.5-11 14.1C7.1 27.9 2 21.6 2 14.4V4.1C4.8 2.5 8.5 1.5 13 1.5z" fill="none" stroke="#fff" stroke-width="2.4"/><rect x="8.2" y="12.6" width="9.6" height="7.6" rx="1.4" fill="#fff"/><path d="M10.2 12.8v-2.2a2.8 2.8 0 015.6 0v2.2" fill="none" stroke="#fff" stroke-width="1.9"/></svg>
+      <div><b>J&amp;M SYSTEM</b><small>SEGURANÇA E TECNOLOGIA</small></div>
+    </div>
+    </div>
+    <form class="login-form" id="login-form" autocomplete="on">
+      <h1>Entrar</h1>
+      <p>Acesse o sistema de orçamentos e recibos.</p>
+      <div><label class="f" for="lg-user">Usuário</label><input class="inp" id="lg-user" name="username" autocomplete="username" required></div>
+      <div><label class="f" for="lg-pass">Senha</label><input class="inp" id="lg-pass" name="password" type="password" autocomplete="current-password" required></div>
+      <label class="check"><input type="checkbox" id="lg-keep"> Manter conectado neste aparelho</label>
+      <div class="login-err" id="lg-err" role="alert"></div>
+      <button class="btn primary" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1.5c4.5 0 8.2 1 11 2.6v10.3c0 7.2-5.1 13.5-11 14.1C7.1 27.9 2 21.6 2 14.4V4.1C4.8 2.5 8.5 1.5 13 1.5z" fill="none" stroke="#fff" stroke-width="2.4"/><rect x="8.2" y="12.6" width="9.6" height="7.6" rx="1.4" fill="#fff"/><path d="M10.2 12.8v-2.2a2.8 2.8 0 015.6 0v2.2" fill="none" stroke="#fff" stroke-width="1.9"/></svg>
+      <div><b>J&amp;M SYSTEM</b><small>SEGURANÇA E TECNOLOGIA</small></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-orc" aria-selected="true" data-mode="orc">Fazer orçamento</button>
+      <button class="tab" role="tab" id="tab-rec" aria-selected="false" data-mode="rec">Fazer recibo</button>
+      <button class="btn logout" id="logout" type="button" title="Sair">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <!-- ===== ORÇAMENTO ===== -->
+    <div id="form-orc">
+      <div class="card">
+        <h2><span class="n">1</span>Cliente</h2>
+        <div class="row r-date">
+          <div><label class="f" for="o-cliente">Nome do cliente</label><input class="inp" id="o-cliente" autocomplete="off" placeholder="Ex.: Acqua"></div>
+          <div><label class="f" for="o-data">Data de emissão</label><input class="inp" id="o-data" type="date"></div>
+        </div>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="o-cnpj-on"> Incluir CNPJ do cliente</label>
+        <div id="o-cnpj-wrap" class="hidden" style="margin-top:6px"><input class="inp" id="o-cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" maxlength="18"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2><span class="n">2</span>Buscar produtos Digital Sat</h2>
+        <div class="search-wrap">
+          <div class="search-bar">
+            <div style="position:relative">
+              <svg class="search-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <input class="inp" id="q" type="search" autocomplete="off" placeholder="Ex.: câmera vhd 1120, gravador mhdx, fechadura facial…" aria-label="Buscar produto">
+            </div>
+            <select class="inp" id="cat" aria-label="Categoria"><option value="">Todas as categorias</option></select>
+          </div>
+          <div class="results" id="results" role="listbox" aria-label="Resultados"></div>
+          <p class="hint" id="cat-info">Carregando catálogo…</p>
+        </div>
+        <div class="btns" style="margin-top:10px">
+          <button class="btn sm" id="add-custom" type="button">+ Item personalizado</button>
+          <button class="btn sm" id="add-labor" type="button">+ Mão de obra</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2><span class="n">3</span>Itens do orçamento <span class="chip" id="o-count" style="margin-left:auto">0 itens</span></h2>
+        <div class="items" id="o-items"></div>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+          <label class="check"><input type="checkbox" id="o-unit-col"> Mostrar coluna de valores unitários no orçamento</label>
+          <div class="row r2">
+            <div><label class="f" for="o-coltitle">Título da coluna de descrição</label><input class="inp" id="o-coltitle" value="DESCRIÇÃO"></div>
+            <div><label class="f" for="o-obs">Observação (opcional)</label><textarea class="inp" id="o-obs" rows="1" placeholder="Ex.: fechando o orçamento não cobramos…"></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2><span class="n">4</span>Valor total</h2>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <div class="seg" role="group" aria-label="Como calcular o total">
+            <button type="button" id="o-tot-auto" aria-pressed="true">Somar itens</button>
+            <button type="button" id="o-tot-man" aria-pressed="false">Digitar valor</button>
+          </div>
+          <div class="money hidden" id="o-total-wrap" style="width:180px"><span>R$</span><input class="inp" id="o-total" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+        <div class="total-box"><span class="t" id="o-total-note">Soma de quantidade × valor unitário</span><span class="v" id="o-total-view">R$ 0,00</span></div>
+      </div>
+    </div>
+
+    <!-- ===== RECIBO ===== -->
+    <div id="form-rec" class="hidden">
+      <div class="card">
+        <h2><span class="n">1</span>Cliente</h2>
+        <div class="row r-date">
+          <div><label class="f" for="r-cliente">Nome do cliente</label><input class="inp" id="r-cliente" autocomplete="off" placeholder="Ex.: Acqua"></div>
+          <div><label class="f" for="r-data">Data de emissão</label><input class="inp" id="r-data" type="date"></div>
+        </div>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="r-cnpj-on"> Incluir CNPJ do cliente</label>
+        <div id="r-cnpj-wrap" class="hidden" style="margin-top:6px"><input class="inp" id="r-cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" maxlength="18"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2><span class="n">2</span>Serviços / produtos recebidos</h2>
+        <div class="items" id="r-items"></div>
+        <div class="btns" style="margin-top:10px"><button class="btn sm" id="r-add" type="button">+ Adicionar linha</button></div>
+        <div class="total-box" style="margin-top:12px"><span class="t">Total recebido</span><span class="v" id="r-total-view">R$ 0,00</span></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2><span class="n">3</span>Assinatura</h2>
+        <label class="sig-drop" id="sig-drop">
+          <input type="file" id="sig-file" accept="image/png,image/jpeg,image/webp,image/*" aria-label="Enviar imagem da assinatura">
+          <div class="sig-thumb"><img id="sig-thumb" alt="Assinatura atual" hidden><em id="sig-empty">Sem assinatura</em></div>
+          <div class="sig-txt"><b id="sig-state">Nenhuma assinatura enviada</b><span><span class="sig-up">Clique para enviar</span> ou arraste a imagem da assinatura aqui (PNG ou JPG). Foto da assinatura em papel branco também funciona.</span></div>
+        </label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="sig-clean" checked> Remover fundo branco e cortar as sobras automaticamente</label>
+        <div class="row r2" style="margin-top:8px;align-items:end">
+          <div><label class="f" for="sig-name">Nome abaixo da assinatura</label><input class="inp" id="sig-name" autocomplete="off"></div>
+          <div><button class="btn sm" id="sig-reset" type="button">Remover assinatura</button></div>
+        </div>
+        <p class="hint" id="sig-msg">A assinatura enviada fica salva neste navegador para os próximos recibos.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="preview">
+    <div class="pv-head"><h3 id="pv-title">Prévia do orçamento</h3><span class="pg-note" id="pg-note"></span></div>
+    <div class="pages" id="pages"></div>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="bar-in">
+    <button class="btn primary" id="dl-pdf" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>Baixar PDF</button>
+    <button class="btn dark" id="dl-png" type="button">Baixar imagem (PNG)</button>
+    <button class="btn" id="copy-img" type="button">Copiar imagem</button>
+    <span class="status" id="status" role="status" aria-live="polite"></span>
+    <span class="sp"></span>
+    <button class="btn ghost" id="reset" type="button">Novo documento</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+  <div class="modal-in">
+    <h4 id="modal-t">Salvar imagem</h4>
+    <div class="hint" id="modal-msg" style="margin:0">Clique com o botão direito (ou pressione e segure no celular) sobre a imagem e escolha “Salvar imagem”.</div>
+    <div id="modal-imgs"></div>
+    <div class="btns" style="justify-content:flex-end"><button class="btn" id="modal-x" type="button">Fechar</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Login simples, feito no navegador (site estático, sem servidor).
+  const USER = 'juliana', PASS = 'jm1416';
+  const root = document.documentElement;
+  const form = document.getElementById('login-form');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const u = document.getElementById('lg-user').value.trim().toLowerCase();
+    const p = document.getElementById('lg-pass').value;
+    if (u === USER && p === PASS) {
+      try {
+        sessionStorage.setItem('jm_auth', '1');
+        if (document.getElementById('lg-keep').checked) localStorage.setItem('jm_auth', '1');
+      } catch (err) {}
+      document.getElementById('lg-err').textContent = '';
+      document.getElementById('lg-pass').value = '';
+      root.classList.add('authed');
+      window.dispatchEvent(new Event('resize'));
+    } else {
+      document.getElementById('lg-err').textContent = 'Usuário ou senha incorretos.';
+      document.getElementById('lg-pass').select();
+    }
+  });
+  document.getElementById('logout').addEventListener('click', () => {
+    try { sessionStorage.removeItem('jm_auth'); localStorage.removeItem('jm_auth'); } catch (err) {}
+    root.classList.remove('authed');
+    document.getElementById('lg-user').focus();
+  });
+  if (!root.classList.contains('authed')) setTimeout(() => document.getElementById('lg-user').focus(), 0);
+})();
+</script>
+<script>
+(() => {
+'use strict';
+// ---------------- Company data ----------------
+const CO = {
+  phone: 'Telefone (47) 991463725',
+  email: 'Email: jmsystem.itp@gmail.com',
+  cnpj: 'CNPJ: 64.087.537/0001-13',
+  signer: 'Juliana O. da Conceição'
+};
+const PW = 595.5, PH = 842.25;            // page size in pt (same as the original PDFs)
+const GREY = '#545454';
+const F_ARIAL = "Arimo, 'Liberation Sans', Arial, Helvetica, sans-serif";
+const F_OPEN  = "'Open Sans', 'Segoe UI', Arial, sans-serif";
+
+// ---------------- helpers ----------------
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const norm = (s) => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const esc = (s) => (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function parseMoney(s) {
+  if (s == null) return NaN;
+  s = String(s).trim().replace(/R\$\s?/i, '').replace(/\s/g, '');
+  if (!s) return NaN;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = parseFloat(s);
+  return isFinite(n) ? n : NaN;
+}
+const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const brl = (n) => 'R$ ' + fmt(n);
+function qtyNum(q) { const n = parseMoney(q); return isFinite(n) ? n : null; }
+function todayISO() { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+function brDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; }
+function maskCNPJ(v) {
+  const d = v.replace(/\D/g, '').slice(0, 14);
+  let out = d.slice(0, 2);
+  if (d.length > 2) out += '.' + d.slice(2, 5);
+  if (d.length > 5) out += '.' + d.slice(5, 8);
+  if (d.length > 8) out += '/' + d.slice(8, 12);
+  if (d.length > 12) out += '-' + d.slice(12, 14);
+  return out;
+}
+let uid = 1;
+const newId = () => 'i' + (uid++) + Date.now().toString(36);
+
+// ---------------- state ----------------
+const defOrc = () => ({ cliente: '', data: todayISO(), cnpjOn: false, cnpj: '', items: [], unitCol: false, colTitle: 'DESCRIÇÃO', obs: '', totMode: 'auto', totManual: '' });
+const defRec = () => ({ cliente: '', data: todayISO(), cnpjOn: false, cnpj: '', items: [{ id: newId(), desc: '', valor: '' }] });
+let orc = Object.assign(defOrc(), store.get('jm_orc', {}));
+let rec = Object.assign(defRec(), store.get('jm_rec', {}));
+// date always follows the day of issue
+orc.data = todayISO(); rec.data = todayISO();
+if (!Array.isArray(orc.items)) orc.items = [];
+if (!Array.isArray(rec.items) || !rec.items.length) rec.items = defRec().items;
+let mode = store.get('jm_mode', 'orc') === 'rec' ? 'rec' : 'orc';
+const priceMemo = store.get('jm_prices', {});
+const save = () => { store.set('jm_orc', orc); store.set('jm_rec', rec); store.set('jm_mode', mode); };
+
+function orcTotal() {
+  if (orc.totMode === 'man') { const m = parseMoney(orc.totManual); return isFinite(m) ? m : 0; }
+  let t = 0;
+  for (const it of orc.items) { const u = parseMoney(it.unit); if (!isFinite(u)) continue; const q = qtyNum(it.qty); t += u * (q == null ? 1 : q); }
+  return t;
+}
+function recTotal() { let t = 0; for (const it of rec.items) { const v = parseMoney(it.valor); if (isFinite(v)) t += v; } return t; }
+
+// ---------------- images & fonts ----------------
+function loadImg(src) { return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }); }
+let IMG_HEADER = null, IMG_SIG = null, IMG_SIG_CUSTOM = null;
+let SIG_RAW = store.get('jm_sig_raw', null);      // uploaded signature (data URL)
+let sigClean = store.get('jm_sig_clean', true);
+let signerName = store.get('jm_sig_name', CO.signer);
+const ready = Promise.all([
+  loadImg('header.png').then(i => IMG_HEADER = i),
+  (document.fonts && document.fonts.load) ? Promise.all([
+    document.fonts.load(`12px ${F_ARIAL}`), document.fonts.load(`bold 12px ${F_ARIAL}`),
+    document.fonts.load(`12px ${F_OPEN}`), document.fonts.load(`bold 12px ${F_OPEN}`)
+  ]).catch(() => {}) : Promise.resolve()
+]);
+
+// ---------------- canvas drawing (units = pt) ----------------
+function setFont(ctx, size, family, bold) { ctx.font = `${bold ? '700 ' : ''}${size}px ${family}`; }
+function spacedWidth(ctx, text, sp) { let w = 0; for (const ch of text) w += ctx.measureText(ch).width + sp; return w - (text.length ? sp : 0); }
+function drawSpaced(ctx, text, x, y, sp, align) {
+  const w = spacedWidth(ctx, text, sp);
+  let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  ctx.textAlign = 'left';
+  for (const ch of text) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + sp; }
+}
+function wrap(ctx, text, maxW) {
+  const out = [];
+  for (const para of String(text || '').split(/\n/)) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) { out.push(''); continue; }
+    let line = '';
+    for (const w of words) {
+      const t = line ? line + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW || !line) {
+        if (!line && ctx.measureText(w).width > maxW) { // break very long word
+          let part = '';
+          for (const ch of w) { if (ctx.measureText(part + ch).width > maxW && part) { out.push(part); part = ch; } else part += ch; }
+          line = part;
+        } else line = t;
+      } else { out.push(line); line = w; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+function hline(ctx, x0, x1, y, w, color) { ctx.fillStyle = color; ctx.fillRect(x0, y - w / 2, x1 - x0, w); }
+function vline(ctx, x, y0, y1, w, color) { ctx.fillStyle = color; ctx.fillRect(x - w / 2, y0, w, y1 - y0); }
+
+function drawHeader(ctx, title) {
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH);
+  if (IMG_HEADER) ctx.drawImage(IMG_HEADER, 0, 0, PW, PW * IMG_HEADER.height / IMG_HEADER.width);
+  else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, PW, 157); ctx.fillStyle = '#c43333'; ctx.fillRect(0, 156.4, PW, 40.8); }
+  ctx.fillStyle = '#fff'; setFont(ctx, 26, F_ARIAL);
+  drawSpaced(ctx, title, 60.1, 181.5, 9.75, 'left');
+}
+function drawFooter(ctx) {
+  ctx.fillStyle = '#000'; setFont(ctx, 10, F_ARIAL); ctx.textAlign = 'center';
+  const lines = ['Contato', CO.phone, CO.email, CO.cnpj];
+  lines.forEach((t, i) => ctx.fillText(t, PW / 2, 771.2 + i * 14));
+}
+function drawClient(ctx, d) {
+  // Data
+  ctx.fillStyle = GREY; setFont(ctx, 13, F_ARIAL); ctx.textAlign = 'left';
+  ctx.fillText('Data:', 311.8, 243.6);
+  hline(ctx, 345.4, 535.2, 246.2, 1, GREY);
+  ctx.fillStyle = '#000'; setFont(ctx, 12, F_ARIAL); ctx.fillText(brDate(d.data), 391.5, 243.4);
+  // Cliente
+  ctx.fillStyle = GREY; setFont(ctx, 13, F_ARIAL); ctx.fillText('Cliente:', 59.5, 277.3);
+  hline(ctx, 110.8, 535.7, 279.9, 1, GREY);
+  if (d.cliente) { ctx.fillStyle = '#000'; setFont(ctx, 12, F_ARIAL); ctx.fillText(fitText(ctx, d.cliente, 535.7 - 114), 113.9, 276); }
+  let bottom = 281;
+  if (d.cnpjOn) {
+    ctx.fillStyle = GREY; setFont(ctx, 13, F_ARIAL); ctx.fillText('CNPJ:', 59.5, 307.3);
+    hline(ctx, 99.5, 300, 309.9, 1, GREY);
+    if (d.cnpj) { ctx.fillStyle = '#000'; setFont(ctx, 12, F_ARIAL); ctx.fillText(d.cnpj, 102.5, 306); }
+    bottom = 311;
+  }
+  return bottom;
+}
+function fitText(ctx, t, maxW) { if (ctx.measureText(t).width <= maxW) return t; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; }
+function drawTotalBox(ctx, top, value) {
+  setFont(ctx, 14, F_ARIAL, true);
+  const txt = brl(value);
+  const w = Math.max(123.3, ctx.measureText(txt).width + 36), h = 30.2, x = PW / 2 - w / 2;
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(x, top, w, h);
+  ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.fillText(txt, PW / 2, top + h / 2 + 5);
+  return top + h;
+}
+
+// ---- Orçamento layout ----
+function layoutOrc() {
+  const unit = orc.unitCol;
+  const xs = unit ? [45.7, 330.0, 430.0, 549.8] : [65.7, 359.7, 529.8];
+  const heads = unit ? [orc.colTitle || 'DESCRIÇÃO', 'QUANTIDADE', 'VALOR UNIT. (R$)'] : [orc.colTitle || 'DESCRIÇÃO', 'QUANTIDADE'];
+  return { xs, heads, unit };
+}
+function rowsOrc(ctx, L, fs, lh, minH) {
+  setFont(ctx, fs, F_OPEN, true);
+  const dw = L.xs[1] - L.xs[0] - 12;
+  return orc.items.map(it => {
+    const lines = wrap(ctx, it.desc || '', dw);
+    const h = Math.max(minH, lines.length * lh + (minH - lh));
+    const u = parseMoney(it.unit);
+    return { lines, h, qty: (it.qty === '' || it.qty == null) ? '' : String(it.qty), val: isFinite(u) ? fmt(u) : '-' };
+  });
+}
+function drawTableHead(ctx, L, top, h, fsHead, sp) {
+  hline(ctx, L.xs[0] - 0.45, L.xs[L.xs.length - 1] + 0.45, top, 0.9, GREY);
+  ctx.fillStyle = GREY;
+  for (let c = 0; c < L.heads.length; c++) {
+    const cw = L.xs[c + 1] - L.xs[c] - 10;
+    let size = fsHead; setFont(ctx, size, F_ARIAL);
+    while (spacedWidth(ctx, L.heads[c], sp) > cw && size > 7) { size -= 0.5; setFont(ctx, size, F_ARIAL); }
+    drawSpaced(ctx, L.heads[c], (L.xs[c] + L.xs[c + 1]) / 2, top + h / 2 + size * 0.30, sp, 'center');
+  }
+  hline(ctx, L.xs[0] - 0.45, L.xs[L.xs.length - 1] + 0.45, top + h, 0.9, GREY);
+  return top + h;
+}
+function renderOrcPages(scale) {
+  const L = layoutOrc();
+  const probe = document.createElement('canvas').getContext('2d');
+  const total = orcTotal();
+  setFont(probe, 12, F_OPEN);
+  const obsLines = orc.obs.trim() ? wrap(probe, ('Observação: ' + orc.obs.trim()), 360) : [];
+  const LIMIT = 748;
+  const headH = 35.4;
+  const tailH = 30 + 30.2 + (obsLines.length ? 34 + obsLines.length * 16.5 : 0);
+  // choose density so that everything fits on one page if possible
+  const densities = [[12, 15, 30], [11.5, 14, 26], [11, 13.5, 23], [10.5, 13, 21], [10, 12.5, 19]];
+  let D = densities[0], rows;
+  const firstTop = orc.cnpjOn ? 345 : 325;
+  for (const d of densities) {
+    D = d; rows = rowsOrc(probe, L, d[0], d[1], d[2]);
+    const sum = rows.reduce((a, r) => a + r.h, 0);
+    if (firstTop + headH + sum + tailH <= LIMIT) break;
+  }
+  // paginate
+  const pages = []; let cur = { rows: [], first: true }; let y = firstTop + headH;
+  rows.forEach((r, i) => {
+    if (y + r.h > LIMIT && cur.rows.length) { pages.push(cur); cur = { rows: [], first: false }; y = 225 + headH; }
+    cur.rows.push(r); y += r.h;
+  });
+  let tailOnNew = false;
+  if (y + tailH > LIMIT && rows.length) tailOnNew = true;
+  pages.push(cur);
+  if (tailOnNew) pages.push({ rows: [], first: false, tailOnly: true });
+
+  return pages.map((pg, pi) => {
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(PW * scale); cv.height = Math.round(PH * scale);
+    const ctx = cv.getContext('2d'); ctx.scale(scale, scale); ctx.textBaseline = 'alphabetic';
+    drawHeader(ctx, 'ORÇAMENTO');
+    let top;
+    if (pg.first) { drawClient(ctx, orc); top = firstTop; }
+    else { ctx.fillStyle = GREY; setFont(ctx, 11, F_ARIAL); ctx.textAlign = 'left'; ctx.fillText(`Continuação — ${orc.cliente ? orc.cliente + ' — ' : ''}${brDate(orc.data)}`, 59.5, 214); top = 225; }
+    let yy = top;
+    if (!pg.tailOnly) {
+      yy = drawTableHead(ctx, L, top, headH, 12, L.unit ? 0.6 : 1.2);
+      ctx.fillStyle = GREY;
+      if (!pg.rows.length) { // empty table placeholder rows
+        for (let k = 0; k < 1; k++) { yy += D[2]; hline(ctx, L.xs[0] - 0.45, L.xs[L.xs.length - 1] + 0.45, yy, 0.9, GREY); }
+      }
+      for (const r of pg.rows) {
+        const mid = yy + r.h / 2;
+        setFont(ctx, D[0], F_OPEN, true); ctx.fillStyle = GREY; ctx.textAlign = 'center';
+        const cx0 = (L.xs[0] + L.xs[1]) / 2;
+        const startY = mid - (r.lines.length - 1) * D[1] / 2 + D[0] * 0.36;
+        r.lines.forEach((ln, k) => ctx.fillText(ln, cx0, startY + k * D[1]));
+        ctx.fillText(r.qty, (L.xs[1] + L.xs[2]) / 2, mid + D[0] * 0.36);
+        if (L.unit) ctx.fillText(r.val, (L.xs[2] + L.xs[3]) / 2, mid + D[0] * 0.36);
+        yy += r.h;
+        hline(ctx, L.xs[0] - 0.45, L.xs[L.xs.length - 1] + 0.45, yy, 0.9, GREY);
+      }
+      for (const x of L.xs) vline(ctx, x, top, yy, 0.9, GREY);
+    }
+    const isLast = pi === pages.length - 1;
+    if (isLast) {
+      const bTop = pg.tailOnly ? 235 : yy + 30;
+      const bBottom = drawTotalBox(ctx, bTop, total);
+      if (obsLines.length) {
+        ctx.fillStyle = '#000'; setFont(ctx, 12, F_OPEN); ctx.textAlign = 'center';
+        obsLines.forEach((ln, k) => ctx.fillText(ln, PW / 2, bBottom + 46 + k * 16.5));
+      }
+    }
+    if (pages.length > 1) { ctx.fillStyle = '#888'; setFont(ctx, 9, F_ARIAL); ctx.textAlign = 'right'; ctx.fillText(`Página ${pi + 1}/${pages.length}`, 550, 834); }
+    drawFooter(ctx);
+    return cv;
+  });
+}
+
+// ---- Recibo layout ----
+function renderRecPages(scale) {
+  const xs = [58.2, 427.5, 540.8];
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(PW * scale); cv.height = Math.round(PH * scale);
+  const ctx = cv.getContext('2d'); ctx.scale(scale, scale); ctx.textBaseline = 'alphabetic';
+  drawHeader(ctx, 'RECIBO');
+  drawClient(ctx, rec);
+  const items = rec.items.filter(it => (it.desc || '').trim() || isFinite(parseMoney(it.valor)));
+  const list = items.length ? items : [{ desc: '', valor: '' }];
+  // density
+  let fs = 12, lh = 15, minH = 28.3;
+  const sigTopDefault = 587.6;
+  const est = (f, l, m) => { setFont(ctx, f, F_OPEN, true); return list.reduce((a, it) => a + Math.max(m, wrap(ctx, it.desc, xs[1] - xs[0] - 12).length * l + (m - l)), 0); };
+  const top = 373.2, headH = 50.7;
+  const extra = list.length > 1 ? 22 + 30.2 : 0;
+  const maxBody = 700 - 90 - top - headH - extra; // leave room for signature block
+  for (const d of [[12, 15, 28.3], [11, 13.5, 24], [10, 12.5, 20], [9, 11, 17]]) { fs = d[0]; lh = d[1]; minH = d[2]; if (est(fs, lh, minH) <= maxBody) break; }
+  const L = { xs, heads: ['DESCRIÇÃO', 'VALOR'] };
+  let y = drawTableHead(ctx, L, top, headH, 12, 0.25);
+  for (const it of list) {
+    setFont(ctx, fs, F_OPEN, true);
+    const lines = wrap(ctx, it.desc, xs[1] - xs[0] - 12);
+    const h = Math.max(minH, lines.length * lh + (minH - lh));
+    const mid = y + h / 2;
+    ctx.fillStyle = GREY; ctx.textAlign = 'center';
+    const sy = mid - (lines.length - 1) * lh / 2 + fs * 0.36;
+    lines.forEach((ln, k) => ctx.fillText(ln, (xs[0] + xs[1]) / 2, sy + k * lh));
+    const v = parseMoney(it.valor);
+    setFont(ctx, fs, F_ARIAL); ctx.fillText(isFinite(v) ? brl(v) : '', (xs[1] + xs[2]) / 2, mid + fs * 0.36);
+    y += h; hline(ctx, xs[0] - 0.45, xs[2] + 0.45, y, 0.9, GREY);
+  }
+  for (const x of xs) vline(ctx, x, top, y, 0.9, GREY);
+  let bottom = y;
+  if (list.length > 1) bottom = drawTotalBox(ctx, y + 22, recTotal());
+  // signature block (moves down only if the table is long)
+  const shift = Math.max(0, bottom + 30 - sigTopDefault);
+  const sTop = Math.min(sigTopDefault + shift, 690);
+  const dy = sTop - sigTopDefault;
+  if (IMG_SIG_CUSTOM) {
+    // fit the uploaded signature in a 200 x 52 pt box, centred, resting on the line
+    const im = IMG_SIG_CUSTOM, k = Math.min(200 / im.width, 52 / im.height);
+    const w = im.width * k, h = im.height * k;
+    ctx.drawImage(im, 295.7 - w / 2, 628.4 + dy - h, w, h);
+  }
+  hline(ctx, 184.9, 406.6, 629.7 + dy, 0.9, '#000');
+  ctx.fillStyle = '#000'; setFont(ctx, 12.2, F_ARIAL); ctx.textAlign = 'center';
+  ctx.fillText(signerName, 295.7, 659.6 + dy);
+  drawFooter(ctx);
+  return [cv];
+}
+
+const renderPages = (scale) => mode === 'orc' ? renderOrcPages(scale) : renderRecPages(scale);
+
+// ---------------- preview ----------------
+let rafPending = false;
+function schedulePreview() {
+  if (rafPending) return; rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; drawPreview(); });
+}
+function drawPreview() {
+  const host = $('pages');
+  const w = Math.min(host.clientWidth || 600, 640);
+  const scale = Math.max(1.2, (w * (window.devicePixelRatio || 1)) / PW);
+  const pages = renderPages(scale);
+  host.replaceChildren(...pages);
+  pages.forEach((c, i) => { c.setAttribute('role', 'img'); c.setAttribute('aria-label', `Prévia página ${i + 1}`); });
+  $('pg-note').textContent = pages.length > 1 ? `${pages.length} páginas` : 'A4 · 1 página';
+}
+
+// ---------------- export ----------------
+const EXPORT_SCALE = 1654 / PW; // ~200 dpi
+let downloads = null;
+if (window.claude && typeof window.claude.use === 'function') {
+  window.claude.use('downloads').then(d => { downloads = d; }).catch(() => {});
+}
+function setStatus(msg, cls) { const s = $('status'); s.textContent = msg; s.className = 'status' + (cls ? ' ' + cls : ''); if (msg) clearTimeout(setStatus.t), setStatus.t = setTimeout(() => { s.textContent = ''; }, 6000); }
+function docName(ext, page, nPages) {
+  const d = mode === 'orc' ? orc : rec;
+  const kind = mode === 'orc' ? 'Orçamento' : 'Recibo';
+  const who = (d.cliente || '').replace(/[\\/:*?"<>|]+/g, ' ').trim();
+  const date = brDate(d.data).replace(/\//g, '-');
+  const pg = nPages > 1 ? ` (página ${page})` : '';
+  return `${kind}${who ? ' - ' + who : ''} - ${date}${pg}.${ext}`;
+}
+const toBlob = (cv, type, q) => new Promise(res => cv.toBlob(b => res(b), type, q));
+
+async function buildPDF(pages) {
+  const enc = new TextEncoder();
+  const parts = []; let len = 0; const offsets = [];
+  const push = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+  const nP = pages.length;
+  // objects: 1 catalog, 2 pages, then per page: page, content, image
+  const objs = [];
+  const kids = [];
+  for (let i = 0; i < nP; i++) kids.push(`${3 + i * 3} 0 R`);
+  const jpgs = [];
+  for (const cv of pages) { const b = await toBlob(cv, 'image/jpeg', 0.92); jpgs.push(new Uint8Array(await b.arrayBuffer())); }
+  const PWp = 595.28, PHp = 841.89;
+  push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  const obj = (n, body) => { offsets[n] = len; push(`${n} 0 obj\n`); if (Array.isArray(body)) body.forEach(push); else push(body); push('\nendobj\n'); };
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${nP} >>`);
+  for (let i = 0; i < nP; i++) {
+    const pN = 3 + i * 3, cN = pN + 1, iN = pN + 2;
+    obj(pN, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PWp} ${PHp}] /Resources << /XObject << /Im${i} ${iN} 0 R >> >> /Contents ${cN} 0 R >>`);
+    const content = `q ${PWp} 0 0 ${PHp} 0 0 cm /Im${i} Do Q`;
+    obj(cN, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    const cv = pages[i];
+    obj(iN, [`<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgs[i].length} >>\nstream\n`, jpgs[i], '\nendstream']);
+  }
+  const nObj = 3 + nP * 3;
+  const xref = len;
+  let x = `xref\n0 ${nObj}\n0000000000 65535 f \n`;
+  for (let n = 1; n < nObj; n++) x += String(offsets[n]).padStart(10, '0') + ' 00000 n \n';
+  push(x);
+  push(`trailer\n<< /Size ${nObj} /Root 1 0 R /Info << /Producer (J&M System) >> >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+
+async function offer(blob, filename) {
+  if (downloads) {
+    try { await downloads.save({ filename, data: blob }); setStatus('Arquivo salvo: ' + filename, 'ok'); return true; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === 'declined') { setStatus('Download cancelado.', ''); return true; }
+      if (code === 'rate_limited') { setStatus('Aguarde um instante e tente de novo.', 'err'); return true; }
+    }
+  }
+  // fallback: regular link (works outside the sandboxed viewer)
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    if (!window.claude) { setStatus('Arquivo baixado: ' + filename, 'ok'); return true; }
+  } catch (e) {}
+  return false;
+}
+function showImages(pages, msg) {
+  const box = $('modal-imgs'); box.replaceChildren();
+  pages.forEach((cv, i) => { const im = new Image(); im.alt = 'Página ' + (i + 1); im.src = cv.toDataURL('image/png'); box.appendChild(im); });
+  if (msg) $('modal-msg').textContent = msg;
+  $('modal').classList.remove('hidden');
+}
+
+async function withBusy(btn, fn) {
+  const btns = ['dl-pdf', 'dl-png', 'copy-img'].map($);
+  btns.forEach(b => b.disabled = true);
+  try { await ready; await fn(); } catch (e) { console.error(e); setStatus('Não foi possível gerar o arquivo.', 'err'); }
+  finally { btns.forEach(b => b.disabled = false); }
+}
+$('dl-pdf').addEventListener('click', () => withBusy($('dl-pdf'), async () => {
+  if (!validate()) return;
+  setStatus('Gerando PDF…');
+  const pages = renderPages(EXPORT_SCALE);
+  const pdf = await buildPDF(pages);
+  const ok = await offer(pdf, docName('pdf', 1, 1));
+  if (!ok) setStatus('Se o download não começou, use “Baixar imagem”.', '');
+  rememberPrices();
+}));
+$('dl-png').addEventListener('click', () => withBusy($('dl-png'), async () => {
+  if (!validate()) return;
+  setStatus('Gerando imagem…');
+  const pages = renderPages(EXPORT_SCALE);
+  let anyOk = true;
+  for (let i = 0; i < pages.length; i++) {
+    const b = await toBlob(pages[i], 'image/png');
+    const ok = await offer(b, docName('png', i + 1, pages.length));
+    anyOk = anyOk && ok;
+  }
+  if (!downloads && window.claude) showImages(pages, 'Se o download não começou, clique com o botão direito (ou pressione e segure no celular) sobre a imagem e escolha “Salvar imagem”.');
+  rememberPrices();
+}));
+$('copy-img').addEventListener('click', () => withBusy($('copy-img'), async () => {
+  const pages = renderPages(EXPORT_SCALE);
+  try {
+    const b = await toBlob(pages[0], 'image/png');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
+    setStatus(pages.length > 1 ? 'Página 1 copiada. Cole no WhatsApp ou e-mail.' : 'Imagem copiada. Cole no WhatsApp ou e-mail.', 'ok');
+  } catch (e) {
+    showImages(pages, 'Não foi possível copiar direto. Clique com o botão direito (ou pressione e segure) na imagem e escolha “Copiar imagem”.');
+  }
+}));
+$('modal-x').addEventListener('click', () => $('modal').classList.add('hidden'));
+$('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') $('modal').classList.add('hidden'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('modal').classList.add('hidden'); });
+
+function validate() {
+  const d = mode === 'orc' ? orc : rec;
+  if (!d.cliente.trim()) { setStatus('Preencha o nome do cliente.', 'err'); $(mode === 'orc' ? 'o-cliente' : 'r-cliente').focus(); return false; }
+  if (mode === 'orc' && !orc.items.length) { setStatus('Adicione pelo menos um item ao orçamento.', 'err'); $('q').focus(); return false; }
+  return true;
+}
+function rememberPrices() {
+  if (mode !== 'orc') return;
+  for (const it of orc.items) { const u = parseMoney(it.unit); if (it.slug && isFinite(u)) priceMemo[it.slug] = it.unit; }
+  store.set('jm_prices', priceMemo);
+}
+
+// ---------------- catalog search ----------------
+let CATALOG = [];
+fetch('catalog.json').then(r => r.json()).then(data => {
+  CATALOG = data.map(([name, slug, cat]) => ({ name, slug, cat, key: norm(name + ' ' + slug.replace(/-\d+$/, '').replace(/-/g, ' ')) }));
+  const cats = [...new Set(CATALOG.map(p => p.cat))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const sel = $('cat');
+  cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = `${c} (${CATALOG.filter(p => p.cat === c).length})`; sel.appendChild(o); });
+  $('cat-info').innerHTML = `${CATALOG.length.toLocaleString('pt-BR')} produtos da <a href="https://loja.digitalsat.com.br/" target="_blank" rel="noopener">loja Digital Sat</a>. Os preços da loja só aparecem com login, então digite o valor depois de adicionar — ele fica lembrado para a próxima vez.`;
+  runSearch();
+}).catch(() => { $('cat-info').textContent = 'Não foi possível carregar o catálogo. Use “Item personalizado”.'; });
+
+let kbIndex = -1, lastResults = [];
+function runSearch() {
+  const q = norm($('q').value).trim();
+  const cat = $('cat').value;
+  const box = $('results');
+  if (!q && !cat) { box.classList.add('hidden'); lastResults = []; return; }
+  box.classList.remove('hidden');
+  const toks = q.split(/\s+/).filter(Boolean);
+  let res = [];
+  for (const p of CATALOG) {
+    if (cat && p.cat !== cat) continue;
+    let ok = true, score = 0;
+    for (const t of toks) {
+      const i = p.key.indexOf(t);
+      if (i < 0) { ok = false; break; }
+      score += i === 0 ? 0 : (p.key[i - 1] === ' ' ? 1 : 3);
+    }
+    if (ok) res.push([score + p.name.length / 200, p]);
+  }
+  res.sort((a, b) => a[0] - b[0]);
+  const total = res.length;
+  res = res.slice(0, 60).map(r => r[1]);
+  lastResults = res; kbIndex = -1;
+  if (!res.length) { box.innerHTML = `<div class="res-empty">Nenhum produto encontrado. Tente outra palavra ou adicione como item personalizado.</div>`; return; }
+  const hi = (name) => { let h = esc(name); for (const t of toks) { if (t.length < 2) continue; const n = norm(name); const i = n.indexOf(t); if (i >= 0) { const raw = name.slice(i, i + t.length); h = h.replace(esc(raw), `<mark>${esc(raw)}</mark>`); } } return h; };
+  box.innerHTML = res.map((p, i) => `<div class="res" role="option" data-i="${i}"><div><div class="nm">${hi(p.name)}</div><div class="meta"><span class="chip">${esc(p.cat)}</span>${priceMemo[p.slug] ? `<span>último valor: R$ ${esc(priceMemo[p.slug])}</span>` : ''}<a href="https://loja.digitalsat.com.br/produto/${esc(p.slug)}" target="_blank" rel="noopener" data-link>ver na loja ↗</a></div></div><span class="add">+ Adicionar</span></div>`).join('') +
+    (total > res.length ? `<div class="res-empty">Mostrando 60 de ${total}. Digite mais palavras para refinar.</div>` : '');
+}
+let sT;
+$('q').addEventListener('input', () => { clearTimeout(sT); sT = setTimeout(runSearch, 90); });
+$('cat').addEventListener('change', runSearch);
+$('results').addEventListener('click', (e) => {
+  if (e.target.closest('[data-link]')) return;
+  const r = e.target.closest('.res'); if (!r) return;
+  addProduct(lastResults[+r.dataset.i]);
+});
+$('q').addEventListener('keydown', (e) => {
+  const opts = [...$('results').querySelectorAll('.res')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!opts.length) return;
+    kbIndex = (kbIndex + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+    opts.forEach((o, i) => o.classList.toggle('kb', i === kbIndex)); opts[kbIndex].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault(); const i = kbIndex >= 0 ? kbIndex : 0; if (lastResults[i]) addProduct(lastResults[i]);
+  }
+});
+function collapseResults() {
+  clearTimeout(sT);
+  $('q').value = ''; kbIndex = -1; lastResults = [];
+  $('results').classList.add('hidden');
+  $('results').innerHTML = '';
+  $('q').blur();
+}
+$('q').addEventListener('focus', () => { if ($('cat').value && $('results').classList.contains('hidden')) runSearch(); });
+function addProduct(p) {
+  if (!p) return;
+  collapseResults();
+  const ex = orc.items.find(it => it.slug === p.slug);
+  if (ex) { const q = qtyNum(ex.qty); ex.qty = String((q || 0) + 1); changed(); renderOrcItems(ex.id); setStatus(`Quantidade de “${p.name}” aumentada.`, 'ok'); return; }
+  const it = { id: newId(), slug: p.slug, desc: p.name, qty: '1', unit: priceMemo[p.slug] || '' };
+  orc.items.push(it); changed(); renderOrcItems(it.id);
+  setStatus('Adicionado: ' + p.name, 'ok');
+}
+$('add-custom').addEventListener('click', () => { const it = { id: newId(), desc: '', qty: '1', unit: '' }; orc.items.push(it); changed(); renderOrcItems(it.id, true); });
+$('add-labor').addEventListener('click', () => { const it = { id: newId(), desc: 'Mão de obra', qty: '-', unit: '' }; orc.items.push(it); changed(); renderOrcItems(it.id, false, true); });
+
+// ---------------- item editors ----------------
+const ICON_UP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 15l6-6 6 6"/></svg>';
+const ICON_DN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function autoGrow(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 160) + 'px'; }
+
+function renderOrcItems(flashId, focusDesc, focusUnit) {
+  const box = $('o-items');
+  $('o-count').textContent = orc.items.length === 1 ? '1 item' : `${orc.items.length} itens`;
+  if (!orc.items.length) { box.innerHTML = '<div class="empty-items">Nenhum item ainda. Busque um produto acima ou adicione um item personalizado.</div>'; updateTotals(); return; }
+  box.innerHTML = orc.items.map((it, i) => {
+    const u = parseMoney(it.unit), q = qtyNum(it.qty);
+    const sub = isFinite(u) ? brl(u * (q == null ? 1 : q)) : '—';
+    return `<div class="item" data-id="${it.id}">
+      <div class="item-top"><span class="item-idx">${i + 1}</span>
+        <textarea class="inp item-desc" rows="1" data-f="desc" aria-label="Descrição do item ${i + 1}" placeholder="Descrição">${esc(it.desc)}</textarea>
+        <div class="item-ctrl"><button class="icon-btn" type="button" data-a="up" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''}>${ICON_UP}</button><button class="icon-btn" type="button" data-a="down" aria-label="Mover para baixo" ${i === orc.items.length - 1 ? 'disabled' : ''}>${ICON_DN}</button><button class="icon-btn del" type="button" data-a="del" aria-label="Remover item">${ICON_X}</button></div>
+      </div>
+      <div class="item-nums"><span></span>
+        <div><span class="lbl-s">Quantidade</span><input class="inp" data-f="qty" value="${esc(it.qty)}" inputmode="decimal" aria-label="Quantidade do item ${i + 1}"></div>
+        <div><span class="lbl-s">Valor unitário</span><div class="money"><span>R$</span><input class="inp" data-f="unit" value="${esc(it.unit)}" inputmode="decimal" placeholder="0,00" aria-label="Valor unitário do item ${i + 1}"></div></div>
+        <div class="sub">Subtotal <b data-sub>${sub}</b></div>
+      </div></div>`;
+  }).join('');
+  box.querySelectorAll('textarea').forEach(autoGrow);
+  if (flashId) {
+    const el = box.querySelector(`[data-id="${flashId}"]`);
+    if (el) {
+      el.classList.add('flash'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (focusDesc) el.querySelector('[data-f="desc"]').focus();
+      if (focusUnit) el.querySelector('[data-f="unit"]').focus();
+    }
+  }
+  updateTotals();
+}
+$('o-items').addEventListener('input', (e) => {
+  const el = e.target, card = el.closest('.item'); if (!card || !el.dataset.f) return;
+  const it = orc.items.find(x => x.id === card.dataset.id); if (!it) return;
+  it[el.dataset.f] = el.value;
+  if (el.tagName === 'TEXTAREA') autoGrow(el);
+  const u = parseMoney(it.unit), q = qtyNum(it.qty);
+  card.querySelector('[data-sub]').textContent = isFinite(u) ? brl(u * (q == null ? 1 : q)) : '—';
+  changed();
+});
+$('o-items').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const id = b.closest('.item').dataset.id; const i = orc.items.findIndex(x => x.id === id);
+  if (b.dataset.a === 'del') orc.items.splice(i, 1);
+  if (b.dataset.a === 'up' && i > 0) [orc.items[i - 1], orc.items[i]] = [orc.items[i], orc.items[i - 1]];
+  if (b.dataset.a === 'down' && i < orc.items.length - 1) [orc.items[i + 1], orc.items[i]] = [orc.items[i], orc.items[i + 1]];
+  changed(); renderOrcItems();
+});
+
+function renderRecItems(focusId) {
+  const box = $('r-items');
+  box.innerHTML = rec.items.map((it, i) => `<div class="item" data-id="${it.id}">
+    <div class="item-top"><span class="item-idx">${i + 1}</span>
+      <textarea class="inp item-desc" rows="1" data-f="desc" placeholder="Ex.: Assistência e colocação de puxadores" aria-label="Descrição ${i + 1}">${esc(it.desc)}</textarea>
+      <div class="item-ctrl"><button class="icon-btn del" type="button" data-a="del" aria-label="Remover linha" ${rec.items.length === 1 ? 'disabled' : ''}>${ICON_X}</button></div>
+    </div>
+    <div class="item-nums" style="grid-template-columns:22px 170px 1fr"><span></span>
+      <div><span class="lbl-s">Valor</span><div class="money"><span>R$</span><input class="inp" data-f="valor" value="${esc(it.valor)}" inputmode="decimal" placeholder="0,00" aria-label="Valor ${i + 1}"></div></div><span></span>
+    </div></div>`).join('');
+  box.querySelectorAll('textarea').forEach(autoGrow);
+  if (focusId) { const el = box.querySelector(`[data-id="${focusId}"] textarea`); if (el) el.focus(); }
+  updateTotals();
+}
+$('r-items').addEventListener('input', (e) => {
+  const el = e.target, card = el.closest('.item'); if (!card || !el.dataset.f) return;
+  const it = rec.items.find(x => x.id === card.dataset.id); if (!it) return;
+  it[el.dataset.f] = el.value; if (el.tagName === 'TEXTAREA') autoGrow(el); changed();
+});
+$('r-items').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-a="del"]'); if (!b) return;
+  const id = b.closest('.item').dataset.id; rec.items = rec.items.filter(x => x.id !== id);
+  if (!rec.items.length) rec.items = defRec().items;
+  changed(); renderRecItems();
+});
+$('r-add').addEventListener('click', () => { const it = { id: newId(), desc: '', valor: '' }; rec.items.push(it); changed(); renderRecItems(it.id); });
+
+function updateTotals() {
+  $('o-total-view').textContent = brl(orcTotal());
+  $('o-total-note').textContent = orc.totMode === 'man' ? 'Valor digitado manualmente' : 'Soma de quantidade × valor unitário (mão de obra conta 1×)';
+  $('r-total-view').textContent = brl(recTotal());
+}
+
+// ---------------- general fields ----------------
+function bindField(id, obj, key, opts = {}) {
+  const el = $(id);
+  const isCheck = el.type === 'checkbox';
+  if (isCheck) el.checked = !!obj()[key]; else el.value = obj()[key] ?? '';
+  el.addEventListener(isCheck ? 'change' : 'input', () => {
+    let v = isCheck ? el.checked : el.value;
+    if (opts.mask) { v = opts.mask(v); el.value = v; }
+    obj()[key] = v; if (opts.after) opts.after(v); changed();
+  });
+}
+const O = () => orc, R = () => rec;
+bindField('o-cliente', O, 'cliente'); bindField('o-data', O, 'data'); bindField('o-cnpj', O, 'cnpj', { mask: maskCNPJ });
+bindField('o-cnpj-on', O, 'cnpjOn', { after: v => $('o-cnpj-wrap').classList.toggle('hidden', !v) });
+bindField('o-unit-col', O, 'unitCol'); bindField('o-coltitle', O, 'colTitle'); bindField('o-obs', O, 'obs', { after: () => autoGrow($('o-obs')) });
+bindField('o-total', O, 'totManual');
+bindField('r-cliente', R, 'cliente'); bindField('r-data', R, 'data'); bindField('r-cnpj', R, 'cnpj', { mask: maskCNPJ });
+bindField('r-cnpj-on', R, 'cnpjOn', { after: v => $('r-cnpj-wrap').classList.toggle('hidden', !v) });
+$('o-cnpj-wrap').classList.toggle('hidden', !orc.cnpjOn); $('r-cnpj-wrap').classList.toggle('hidden', !rec.cnpjOn);
+function setTotMode(m) {
+  orc.totMode = m;
+  $('o-tot-auto').setAttribute('aria-pressed', m === 'auto'); $('o-tot-man').setAttribute('aria-pressed', m === 'man');
+  $('o-total-wrap').classList.toggle('hidden', m !== 'man');
+  if (m === 'man' && !orc.totManual) { const t = orcTotal(); if (t) { orc.totManual = fmt(t); $('o-total').value = orc.totManual; } }
+  changed();
+}
+$('o-tot-auto').addEventListener('click', () => setTotMode('auto'));
+$('o-tot-man').addEventListener('click', () => { setTotMode('man'); $('o-total').focus(); });
+
+function changed() { updateTotals(); save(); schedulePreview(); }
+
+function setMode(m) {
+  mode = m;
+  $('tab-orc').setAttribute('aria-selected', m === 'orc'); $('tab-rec').setAttribute('aria-selected', m === 'rec');
+  $('form-orc').classList.toggle('hidden', m !== 'orc'); $('form-rec').classList.toggle('hidden', m !== 'rec');
+  $('pv-title').textContent = m === 'orc' ? 'Prévia do orçamento' : 'Prévia do recibo';
+  save(); drawPreview();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
+
+let resetArmed = 0;
+$('reset').addEventListener('click', () => {
+  if (Date.now() - resetArmed > 4000) { resetArmed = Date.now(); $('reset').textContent = 'Clique de novo para limpar'; setTimeout(() => $('reset').textContent = 'Novo documento', 4000); return; }
+  resetArmed = 0; $('reset').textContent = 'Novo documento';
+  if (mode === 'orc') { orc = defOrc(); } else { rec = defRec(); }
+  syncInputs(); changed(); setStatus('Formulário limpo.', 'ok');
+});
+function syncInputs() {
+  const set = (id, v) => { const el = $(id); if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; };
+  set('o-cliente', orc.cliente); set('o-data', orc.data); set('o-cnpj-on', orc.cnpjOn); set('o-cnpj', orc.cnpj);
+  set('o-unit-col', orc.unitCol); set('o-coltitle', orc.colTitle); set('o-obs', orc.obs); set('o-total', orc.totManual);
+  set('r-cliente', rec.cliente); set('r-data', rec.data); set('r-cnpj-on', rec.cnpjOn); set('r-cnpj', rec.cnpj);
+  $('o-cnpj-wrap').classList.toggle('hidden', !orc.cnpjOn); $('r-cnpj-wrap').classList.toggle('hidden', !rec.cnpjOn);
+  setTotModeSilent(orc.totMode);
+  renderOrcItems(); renderRecItems(); autoGrow($('o-obs'));
+}
+function setTotModeSilent(m) { $('o-tot-auto').setAttribute('aria-pressed', m === 'auto'); $('o-tot-man').setAttribute('aria-pressed', m === 'man'); $('o-total-wrap').classList.toggle('hidden', m !== 'man'); }
+
+// ---------------- signature upload ----------------
+function processSignature(src, clean) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1400 / Math.max(im.width, im.height));
+      const W = Math.max(1, Math.round(im.width * k)), H = Math.max(1, Math.round(im.height * k));
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.drawImage(im, 0, 0, W, H);
+      const d = x.getImageData(0, 0, W, H), px = d.data;
+      if (clean) {
+        // paper brightness = median luminance; everything close to it becomes transparent
+        const hist = new Uint32Array(256); let total = 0;
+        for (let i = 0; i < px.length; i += 4) { if (px[i + 3] < 10) continue; hist[(px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0]++; total++; }
+        let acc = 0, paper = 255; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.5) { paper = v; break; } }
+        const hi = Math.max(60, paper - 28), lo = Math.max(0, hi - 140);
+        for (let i = 0; i < px.length; i += 4) {
+          const L = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+          let a = (hi - L) / (hi - lo); a = a < 0 ? 0 : a > 1 ? 1 : a;
+          a = Math.pow(a, 0.8) * (px[i + 3] / 255);
+          px[i] = Math.round(px[i] * 0.55); px[i + 1] = Math.round(px[i + 1] * 0.55); px[i + 2] = Math.round(px[i + 2] * 0.6);
+          px[i + 3] = Math.round(a * 255);
+        }
+        x.putImageData(d, 0, 0);
+      }
+      // trim empty borders
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) {
+        const i = (y * W + xx) * 4;
+        const ink = clean ? px[i + 3] > 40 : (px[i + 3] > 40 && (px[i] < 225 || px[i + 1] < 225 || px[i + 2] < 225));
+        if (ink) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 < 0) { reject(new Error('empty')); return; }
+      const pad = Math.round(Math.max(W, H) * 0.01);
+      x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+      const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+      o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+      const out = new Image(); out.onload = () => resolve(out); out.onerror = reject; out.src = o.toDataURL('image/png');
+    };
+    im.onerror = () => reject(new Error('load'));
+    im.src = src;
+  });
+}
+function sigMsg(t, cls) { const m = $('sig-msg'); m.textContent = t; m.style.color = cls === 'err' ? 'var(--red)' : cls === 'ok' ? 'var(--ok)' : ''; }
+async function applySignature() {
+  if (!SIG_RAW) {
+    IMG_SIG_CUSTOM = null; $('sig-thumb').hidden = true; $('sig-thumb').removeAttribute('src'); $('sig-empty').hidden = false;
+    $('sig-state').textContent = 'Nenhuma assinatura enviada';
+    $('sig-reset').disabled = true; drawPreview(); return;
+  }
+  try {
+    IMG_SIG_CUSTOM = await processSignature(SIG_RAW, sigClean);
+    $('sig-thumb').src = IMG_SIG_CUSTOM.src; $('sig-thumb').hidden = false; $('sig-empty').hidden = true; $('sig-state').textContent = 'Assinatura enviada';
+    $('sig-reset').disabled = false;
+  } catch (e) {
+    IMG_SIG_CUSTOM = null; sigMsg('Não encontrei a assinatura nessa imagem. Tente outra foto, com fundo claro.', 'err');
+  }
+  drawPreview();
+}
+function readSigFile(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type) && !/\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)) { sigMsg('Envie um arquivo de imagem (PNG ou JPG).', 'err'); return; }
+  const fr = new FileReader();
+  fr.onload = async () => {
+    const prev = SIG_RAW;
+    SIG_RAW = fr.result;
+    await applySignature();
+    if (!IMG_SIG_CUSTOM) { SIG_RAW = prev; applySignature(); return; }
+    // keep a reduced copy (fits in browser storage)
+    try {
+      const im = new Image(); im.src = SIG_RAW; await im.decode();
+      const k = Math.min(1, 1400 / Math.max(im.width, im.height));
+      if (k < 1 || file.size > 1.5e6) {
+        const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        SIG_RAW = c.toDataURL('image/png');
+      }
+    } catch (e) {}
+    store.set('jm_sig_raw', SIG_RAW);
+    sigMsg('Assinatura carregada. Ela já aparece na prévia do recibo e fica salva neste navegador.', 'ok');
+  };
+  fr.onerror = () => sigMsg('Não foi possível ler o arquivo.', 'err');
+  fr.readAsDataURL(file);
+}
+$('sig-file').addEventListener('change', (e) => { readSigFile(e.target.files[0]); e.target.value = ''; });
+const sigDrop = $('sig-drop');
+['dragenter', 'dragover'].forEach(ev => sigDrop.addEventListener(ev, (e) => { e.preventDefault(); sigDrop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => sigDrop.addEventListener(ev, (e) => { e.preventDefault(); sigDrop.classList.remove('over'); }));
+sigDrop.addEventListener('drop', (e) => readSigFile(e.dataTransfer && e.dataTransfer.files[0]));
+$('sig-clean').checked = sigClean;
+$('sig-clean').addEventListener('change', () => { sigClean = $('sig-clean').checked; store.set('jm_sig_clean', sigClean); applySignature(); });
+$('sig-name').value = signerName;
+$('sig-name').addEventListener('input', () => { signerName = $('sig-name').value; store.set('jm_sig_name', signerName); schedulePreview(); });
+$('sig-reset').addEventListener('click', () => {
+  SIG_RAW = null; store.set('jm_sig_raw', null);
+  applySignature(); sigMsg('Assinatura removida. O recibo fica com o espaço da assinatura em branco.', 'ok');
+});
+
+// ---------------- init ----------------
+syncInputs();
+setMode(mode);
+ready.then(applySignature);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawPreview);
+let rT; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(drawPreview, 150); });
+// expose for tests
+window.__jm = { get orc() { return orc; }, get rec() { return rec; }, renderPages, buildPDF, setMode };
+})();
+</script>
+</body>
+</html>

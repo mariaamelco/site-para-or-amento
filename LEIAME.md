@@ -45,7 +45,8 @@ vercel --prod
 
 - O arquivo `.github/workflows/atualizar-catalogo.yml` roda no GitHub Actions **no dia 1 de janeiro, março, maio, julho, setembro e novembro** (a cada 2 meses).
 - Ele lê a lista de produtos da loja Digital Sat (`sitemap_produtos.xml`), tira do `catalog.json` os produtos que saíram da loja e acrescenta os novos, já com o grupo (Câmeras, Redes e Wi-Fi…) escolhido pelo nome do produto.
-- Se algo mudou, ele grava o novo `catalog.json` no repositório; se a Vercel estiver ligada ao repositório, o site é publicado de novo sozinho.
+- Se algo mudou, ele abre um **pull request para a branch `staging`** com a lista de produtos adicionados e removidos. Depois de mesclado e conferido na staging, o catálogo novo vai para produção junto com a próxima versão.
+- Para isso funcionar, em **Settings → Actions → General → Workflow permissions**, marque "Allow GitHub Actions to create and approve pull requests".
 - Para rodar na hora: no GitHub, aba **Actions** → **Atualizar catálogo Digital Sat** → **Run workflow**.
 - Para rodar no computador: `node scripts/atualizar-catalogo.mjs` (Node 20 ou mais novo).
 - Proteção: se a loja estiver fora do ar ou a lista vier com menos de 1.000 produtos, o catálogo não é alterado.
@@ -56,3 +57,27 @@ vercel --prod
 - No PDF/PNG do orçamento, as fotos ficam numa coluna própria ("FOTO") à esquerda da descrição e passam pelo endereço `/foto/ID` do próprio site, que a Vercel repassa para a loja (regra `rewrites` no `vercel.json`). Isso é necessário porque o navegador não deixa colocar imagens de outro site dentro do PDF.
 - Por isso, **as fotos no PDF só funcionam no site publicado na Vercel**. Testando no computador com `python3 -m http.server`, o orçamento sai sem fotos (o resto funciona normal).
 - Para tirar as fotos de um orçamento, desmarque "Mostrar fotos dos produtos no orçamento".
+
+## Produção, staging e versões
+
+| Branch | Para quê | Endereço na Vercel |
+|---|---|---|
+| `main` | **Produção** — o site que a Juliana usa. Só recebe código por versão. | endereço principal do projeto |
+| `staging` | **Testes** — mudanças novas entram aqui primeiro. | endereço fixo da branch `staging` |
+
+Fluxo:
+
+1. Toda mudança entra na `staging` por pull request (inclusive a atualização do catálogo).
+2. Testa-se no endereço da staging.
+3. Quando estiver pronto: atualiza-se o número da versão (`index.html` e `CHANGELOG.md`), abre-se um pull request de `staging` → `main` e mescla-se.
+4. Cria-se a tag da versão na `main` (ex.: `v1.1.0`). O GitHub cria a Release sozinho a partir do `CHANGELOG.md` (`.github/workflows/release.yml`), e a Vercel publica a produção.
+
+### Configuração da Vercel (um projeto, dois endereços)
+
+1. Em https://vercel.com → **Add New… → Project**, importe o repositório `site-para-or-amento`.
+2. Framework Preset: **Other**. Build Command e Output Directory vazios. **Deploy**.
+3. Em **Settings → Git → Production Branch**, confirme `main`.
+4. A branch `staging` ganha um endereço fixo de prévia, no formato `<projeto>-git-staging-<sua-conta>.vercel.app` (aparece em **Deployments**, filtrando pela branch `staging`).
+5. (Opcional) Em **Settings → Domains**, adicione um domínio e ligue-o à branch `staging` para ter um endereço mais fácil de lembrar.
+
+Observação: endereços de prévia da Vercel podem pedir login na Vercel ("Vercel Authentication"). Para a staging abrir sem isso, desligue em **Settings → Deployment Protection**.

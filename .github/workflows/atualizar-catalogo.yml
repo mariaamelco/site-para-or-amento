@@ -1,5 +1,8 @@
 name: Atualizar catálogo Digital Sat
 
+# Roda a cada 2 meses e abre um pull request para a branch "staging" com o catálogo novo.
+# Depois de conferido na staging, ele vai para produção junto com a próxima versão.
+
 on:
   schedule:
     # Dia 1, às 06:17 (horário de Brasília), a cada 2 meses (jan, mar, mai, jul, set, nov)
@@ -8,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: atualizar-catalogo
@@ -19,22 +23,31 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: staging
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Atualizar catalog.json
         run: node scripts/atualizar-catalogo.mjs | tee resumo.txt
-      - name: Salvar alterações
+      - name: Abrir pull request para staging
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- catalog.json; then
-            echo "Catálogo já estava atualizado."
+            echo "Catálogo já estava atualizado." | tee -a resumo.txt
             exit 0
           fi
+          BRANCH="catalogo/$(date +%Y-%m-%d)"
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add catalog.json
           git commit -m "Atualiza catálogo Digital Sat ($(date +%Y-%m-%d))" -m "$(grep -E '^(Sitemap|Novos|Catálogo salvo)' resumo.txt)"
-          git push
+          git push --force origin "$BRANCH"
+          { echo 'Atualização automática do catálogo da Digital Sat.'; echo; echo 'Confira os produtos novos e removidos abaixo antes de mesclar.'; echo; echo '```'; cat resumo.txt; echo '```'; } > corpo.md
+          gh pr create --base staging --head "$BRANCH" --title "Atualiza catálogo Digital Sat ($(date +%Y-%m-%d))" --body-file corpo.md \
+            || gh pr edit "$BRANCH" --body-file corpo.md
       - name: Resumo
         if: always()
         run: |

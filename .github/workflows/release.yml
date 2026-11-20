@@ -1,0 +1,32 @@
+name: Criar Release
+
+# Quando uma tag de versão (ex.: v1.2.0) é enviada, cria a Release no GitHub
+# usando o texto da versão no CHANGELOG.md.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir número da versão no site
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          grep -q "data-version=\"$V\"" index.html || { echo "::error::index.html não está marcado com a versão $V"; exit 1; }
+      - name: Criar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v tag="$GITHUB_REF_NAME" '
+            /^## / { if (found) exit; if (index($0, "## " tag " ") == 1 || $0 == "## " tag) { found=1; next } }
+            found { print }
+          ' CHANGELOG.md > notas.md
+          [ -s notas.md ] || echo "Versão $GITHUB_REF_NAME" > notas.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notas.md --verify-tag

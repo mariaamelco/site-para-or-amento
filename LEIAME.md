@@ -98,7 +98,7 @@ Fluxo:
 1. Toda mudança entra na `staging` por pull request (inclusive a atualização automática do catálogo, que abre um PR para `staging` a cada 2 meses).
 2. Testa-se no endereço da staging.
 3. Quando estiver pronto: atualiza-se `"version"` no `package.json` e a seção nova no `CHANGELOG.md`, abre-se um pull request de `staging` → `main` e mescla-se.
-4. Cria-se a tag da versão na `main` (ex.: `v1.1.0`). O GitHub cria a Release sozinho a partir do `CHANGELOG.md` (`.github/workflows/release.yml`, que confere se a tag bate com o `package.json`), e a Vercel publica a produção.
+4. Cria-se a versão na `main`: no GitHub, **Releases → Draft a new release → Choose a tag**, digite `v1.1.0` (por exemplo), escolha **Target: main** e **Publish release** (ou envie a tag pelo Git). O GitHub cria a Release sozinho a partir do `CHANGELOG.md` (`.github/workflows/release.yml`, que confere se a tag bate com o `package.json`), e a Vercel publica a produção.
 
 Versões: **vX.Y.Z** — X para mudança grande, Y para função nova, Z para correção.
 

@@ -1,7 +1,8 @@
 name: Criar Release
 
-# Quando uma tag de versão (ex.: v1.2.0) é enviada, cria a Release no GitHub
-# usando o texto da versão no CHANGELOG.md.
+# Quando uma tag de versão (ex.: v1.2.0) é enviada, cria a Release no GitHub usando o
+# texto da versão no CHANGELOG.md. Se a Release foi criada pela interface do GitHub
+# (Releases → Draft a new release), só preenche o texto.
 
 on:
   push:
@@ -30,4 +31,9 @@ jobs:
             found { print }
           ' CHANGELOG.md > notas.md
           [ -s notas.md ] || echo "Versão $GITHUB_REF_NAME" > notas.md
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notas.md --verify-tag
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # Release criada pela interface do GitHub: só preenche o texto com o CHANGELOG
+            gh release edit "$GITHUB_REF_NAME" --notes-file notas.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notas.md --verify-tag
+          fi

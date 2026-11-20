@@ -25,16 +25,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: staging
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-      - name: Atualizar catalog.json
-        run: node scripts/atualizar-catalogo.mjs | tee resumo.txt
+          bun-version: latest
+      - name: Atualizar public/catalog.json
+        run: bun scripts/atualizar-catalogo.mjs | tee resumo.txt
       - name: Abrir pull request para staging
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- catalog.json; then
+          if git diff --quiet -- public/catalog.json; then
             echo "Catálogo já estava atualizado." | tee -a resumo.txt
             exit 0
           fi
@@ -42,7 +42,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add catalog.json
+          git add public/catalog.json
           git commit -m "Atualiza catálogo Digital Sat ($(date +%Y-%m-%d))" -m "$(grep -E '^(Sitemap|Novos|Catálogo salvo)' resumo.txt)"
           git push --force origin "$BRANCH"
           { echo 'Atualização automática do catálogo da Digital Sat.'; echo; echo 'Confira os produtos novos e removidos abaixo antes de mesclar.'; echo; echo '```'; cat resumo.txt; echo '```'; } > corpo.md

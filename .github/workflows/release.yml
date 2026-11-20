@@ -16,10 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Conferir número da versão no site
+      - name: Conferir número da versão no package.json
         run: |
           V="${GITHUB_REF_NAME#v}"
-          grep -q "data-version=\"$V\"" index.html || { echo "::error::index.html não está marcado com a versão $V"; exit 1; }
+          P="$(node -p "require('./package.json').version")"
+          [ "$P" = "$V" ] || { echo "::error::package.json está na versão $P, mas a tag é $GITHUB_REF_NAME"; exit 1; }
       - name: Criar Release
         env:
           GH_TOKEN: ${{ github.token }}

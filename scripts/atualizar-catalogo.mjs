@@ -1,15 +1,15 @@
-// Atualiza catalog.json a partir do sitemap da loja Digital Sat.
+// Atualiza public/catalog.json a partir do sitemap da loja Digital Sat.
 // - Remove produtos que saíram da loja.
 // - Para produtos novos, lê o nome na página do produto e escolhe o grupo
 //   (ex.: "Câmeras", "Redes e Wi-Fi") comparando o nome com os produtos que já
 //   estão no catálogo (classificador Naive Bayes simples; ~93% de acerto em teste).
-// Uso: node scripts/atualizar-catalogo.mjs
+// Uso: bun scripts/atualizar-catalogo.mjs
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CATALOG = path.join(ROOT, 'catalog.json');
+const CATALOG = path.join(ROOT, 'public', 'catalog.json');
 const BASE = 'https://loja.digitalsat.com.br';
 const UA = 'Mozilla/5.0 (compatible; JM-System-catalogo/1.0)';
 const CONCURRENCY = 6;

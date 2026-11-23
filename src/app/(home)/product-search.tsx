@@ -1,9 +1,27 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
-import { Plus, Search, Shapes, Wrench } from "lucide-react";
+/* eslint-disable react-hooks/refs -- refs.setReference/setFloating são callback refs do floating-ui */
+
+import {
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type Ref,
+} from "react";
+import { Plus, Search } from "lucide-react";
+import {
+  FloatingPortal,
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  size,
+  useDismiss,
+  useFloating,
+  useInteractions,
+} from "@floating-ui/react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductThumb } from "@/components/app/product-thumb";
+import { ProductThumb } from "@/components/product-thumb";
 import {
   catalogCategories,
   highlightSegments,
@@ -31,8 +49,8 @@ interface Props {
   failed: boolean;
   priceMemo: PriceMemo;
   onAdd: (product: CatalogProduct) => void;
-  onAddCustom: () => void;
-  onAddLabor: () => void;
+  /** Permite que o botão "Adicionar produto" leve o foco ao campo de busca. */
+  inputRef?: Ref<HTMLInputElement>;
 }
 
 export function ProductSearch({
@@ -41,12 +59,13 @@ export function ProductSearch({
   failed,
   priceMemo,
   onAdd,
-  onAddCustom,
-  onAddLabor,
+  inputRef,
 }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(ALL);
   const [active, setActive] = useState(-1);
+  const [open, setOpen] = useState(false);
+  const pointerInside = useRef(false);
 
   const categories = useMemo(
     () =>
@@ -58,21 +77,52 @@ export function ProductSearch({
   );
 
   const selectedCategory = category === ALL ? "" : category;
+  // Catálogos grandes: aplique debounce de 150–200 ms no onChange da busca.
   const { results, total } = useMemo(
     () => searchProducts(products, query, selectedCategory, 60),
     [products, query, selectedCategory],
   );
-  const open = Boolean(query.trim() || selectedCategory);
+  const show = open && Boolean(query.trim());
   const tokens = norm(query).trim().split(/\s+/).filter(Boolean);
+
+  // Lista suspensa ancorada no campo de busca (renderizada em um portal).
+  const { refs, floatingStyles, context } = useFloating({
+    open: show,
+    onOpenChange: setOpen,
+    placement: "bottom-start",
+    strategy: "fixed",
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(6),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply({ rects, elements, availableHeight }) {
+          Object.assign(elements.floating.style, {
+            width: `${rects.reference.width}px`,
+            maxHeight: `${Math.min(availableHeight, 360)}px`,
+          });
+        },
+      }),
+    ],
+  });
+  const dismiss = useDismiss(context, {
+    outsidePress: true,
+    escapeKey: true,
+    referencePress: false,
+  });
+  const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
 
   function add(product: CatalogProduct) {
     setQuery("");
     setActive(-1);
+    setOpen(false);
     onAdd(product);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (!open || !results.length) return;
+    if (!show || !results.length) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActive((i) => (i + 1) % results.length);
@@ -86,6 +136,7 @@ export function ProductSearch({
     } else if (event.key === "Escape") {
       setQuery("");
       setActive(-1);
+      setOpen(false);
     }
   }
 
@@ -98,18 +149,36 @@ export function ProductSearch({
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <div className="grid gap-2 sm:grid-cols-[1fr_210px]">
+        <div
+          ref={refs.setReference}
+          {...getReferenceProps()}
+          className="grid gap-2 sm:grid-cols-[1fr_210px]"
+        >
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="q"
+              ref={inputRef}
               className="h-10 pl-9"
               placeholder="Nome ou código do produto…"
               autoComplete="off"
+              role="combobox"
+              aria-expanded={show}
+              aria-controls="catalog-results"
+              aria-autocomplete="list"
+              aria-activedescendant={
+                active >= 0 ? `catalog-option-${active}` : undefined
+              }
               value={query}
+              onFocus={() => setOpen(true)}
+              onBlur={() => {
+                if (!pointerInside.current) setOpen(false);
+              }}
               onChange={(event) => {
-                setQuery(event.target.value);
+                const value = event.target.value;
+                setQuery(value);
                 setActive(-1);
+                setOpen(Boolean(value.trim()));
               }}
               onKeyDown={handleKeyDown}
             />
@@ -119,6 +188,8 @@ export function ProductSearch({
             onValueChange={(value) => {
               setCategory(value ?? ALL);
               setActive(-1);
+              // A lista só abre com o foco na busca, não ao escolher categoria.
+              setOpen(false);
             }}
           >
             <SelectTrigger className="h-10 w-full" aria-label="Categoria">
@@ -141,12 +212,23 @@ export function ProductSearch({
           </Select>
         </div>
 
-        {open ? (
-          <div
-            role="listbox"
-            aria-label="Resultados da busca"
-            className="max-h-[330px] overflow-auto rounded-lg border bg-white"
-          >
+        {show ? (
+          <FloatingPortal>
+            <div
+              id="catalog-results"
+              ref={refs.setFloating}
+              style={floatingStyles}
+              {...getFloatingProps()}
+              role="listbox"
+              aria-label="Resultados da busca"
+              className="z-50 overflow-y-auto overscroll-contain rounded-lg border bg-white shadow-xl"
+              onPointerDownCapture={() => {
+                pointerInside.current = true;
+              }}
+              onPointerUpCapture={() => {
+                pointerInside.current = false;
+              }}
+            >
             {results.length === 0 ? (
               <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
                 {loading
@@ -162,9 +244,11 @@ export function ProductSearch({
                 return (
                   <div
                     key={product.slug + index}
+                    id={`catalog-option-${index}`}
                     role="option"
                     aria-selected={index === active}
                     tabIndex={-1}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => add(product)}
                     onMouseEnter={() => setActive(index)}
                     className={cn(
@@ -218,11 +302,12 @@ export function ProductSearch({
                 );
               })
             )}
-          </div>
+            </div>
+          </FloatingPortal>
         ) : null}
 
         <p className="text-xs text-muted-foreground">
-          {open && results.length
+          {show && results.length
             ? `Mostrando ${results.length} de ${total} produtos. Use ↑ ↓ e Enter para adicionar.`
             : loading
               ? "Carregando catálogo…"
@@ -231,16 +316,6 @@ export function ProductSearch({
                 : `${products.length} produtos no catálogo. Digite para buscar.`}
         </p>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onAddCustom}>
-            <Shapes />
-            Item personalizado
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onAddLabor}>
-            <Wrench />
-            Mão de obra / serviço
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );

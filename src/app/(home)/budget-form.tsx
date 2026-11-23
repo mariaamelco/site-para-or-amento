@@ -1,12 +1,13 @@
 "use client";
 
+import { useRef } from "react";
 import { Calculator } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { BudgetItems } from "@/components/app/budget-items";
-import { ClientFields } from "@/components/app/client-fields";
-import { MoneyInput } from "@/components/app/money-input";
-import { ProductSearch } from "@/components/app/product-search";
+import { BudgetItems } from "./budget-items";
+import { ClientFields } from "./client-fields";
+import { MoneyInput } from "@/components/money-input";
+import { ProductSearch } from "./product-search";
 import { brl, fmt } from "@/lib/format";
 import { budgetTotal } from "@/lib/totals";
 import type {
@@ -36,6 +37,15 @@ interface Props {
 export function BudgetForm(props: Props) {
   const { doc, onPatch } = props;
   const total = budgetTotal(doc);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // O botão "Adicionar produto" só leva o foco (e a rolagem) até a busca.
+  function focusProductSearch() {
+    const input = searchRef.current;
+    if (!input) return;
+    input.scrollIntoView({ behavior: "smooth", block: "center" });
+    input.focus({ preventScroll: true });
+  }
 
   return (
     <div className="grid gap-3">
@@ -54,8 +64,7 @@ export function BudgetForm(props: Props) {
         failed={props.failed}
         priceMemo={props.priceMemo}
         onAdd={props.onAddProduct}
-        onAddCustom={props.onAddCustom}
-        onAddLabor={props.onAddLabor}
+        inputRef={searchRef}
       />
 
       <BudgetItems
@@ -65,7 +74,9 @@ export function BudgetForm(props: Props) {
         onUpdateItem={props.onUpdateItem}
         onMoveItem={props.onMoveItem}
         onRemoveItem={props.onRemoveItem}
+        onAddProduct={focusProductSearch}
         onAddCustom={props.onAddCustom}
+        onAddLabor={props.onAddLabor}
       />
 
       <Card>

@@ -2,9 +2,9 @@
 
 import { Calculator } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClientFields } from "@/components/app/client-fields";
-import { ReceiptItems } from "@/components/app/receipt-items";
-import { SignaturePanel } from "@/components/app/signature-panel";
+import { ClientFields } from "./client-fields";
+import { ReceiptItems } from "./receipt-items";
+import { SignaturePanel } from "./signature-panel";
 import { brl } from "@/lib/format";
 import { receiptTotal } from "@/lib/totals";
 import type { Notice, ReceiptDoc, ReceiptItem } from "@/lib/types";

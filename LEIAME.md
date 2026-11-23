@@ -29,9 +29,11 @@ public/                     arquivos servidos como estão
   header.png                cabeçalho J&M System usado nos documentos
   fonts/                    Arimo e Open Sans (usadas no documento e na tela)
 scripts/atualizar-catalogo.mjs   atualiza o catálogo a partir do sitemap da loja
-src/app/                    App Router: layout, página e estilos globais
-src/components/app/         telas e formulários (login, busca, itens, prévia, ações)
-src/components/ui/          componentes do shadcn/ui
+src/app/                    App Router: layout, estilos globais e páginas
+  (home)/                   página inicial (rota /) e as seções dela
+                            (login, busca, itens, prévia, ações)
+src/components/             componentes reutilizáveis (money-input, product-thumb…)
+  ui/                       componentes do shadcn/ui
 src/lib/                    regras do app
   format.ts                 dinheiro, datas, CNPJ, id de produto
   catalog.ts                leitura e busca do catálogo
@@ -48,7 +50,7 @@ src/lib/                    regras do app
 next.config.ts              repasse de /foto/ID para a loja e cache dos assets
 ```
 
-Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`) e as telas do app em `src/components/app`.
+Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
 
 ## Publicar na Vercel
 

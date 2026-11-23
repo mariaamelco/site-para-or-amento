@@ -8,6 +8,7 @@ import { ensureFonts } from "@/lib/document/assets";
 import { PW } from "@/lib/document/constants";
 import type { LoadedImage } from "@/lib/document/canvas";
 import type { BudgetDoc, Mode, ReceiptDoc } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface Props {
   mode: Mode;
@@ -16,6 +17,8 @@ interface Props {
   header: LoadedImage | null;
   signature: LoadedImage | null;
   signerName: string;
+  /** Ocupa toda a altura do container (usado na prévia em tela cheia). */
+  fill?: boolean;
 }
 
 /**
@@ -29,6 +32,7 @@ export function DocumentPreview({
   header,
   signature,
   signerName,
+  fill = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [tick, setTick] = useState(0);
@@ -85,7 +89,11 @@ export function DocumentPreview({
   }, [mode, orc, rec, header, signature, signerName, tick]);
 
   return (
-    <div className="lg:sticky lg:top-4">
+    <div
+      className={cn(
+        fill ? "flex h-full min-h-0 flex-col" : "lg:sticky lg:top-4",
+      )}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
           <FileText className="size-4" />
@@ -97,7 +105,10 @@ export function DocumentPreview({
       </div>
       <div
         ref={hostRef}
-        className="doc-pages max-h-[calc(100vh-130px)] overflow-auto rounded-xl bg-neutral-200/70 p-3 ring-1 ring-black/5"
+        className={cn(
+          "doc-pages overflow-auto rounded-xl bg-neutral-200/70 p-3 ring-1 ring-black/5",
+          fill ? "min-h-0 flex-1" : "max-h-[calc(100vh-130px)]",
+        )}
       />
     </div>
   );

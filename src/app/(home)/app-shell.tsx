@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogOut, Receipt, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ActionBar } from "@/components/app/action-bar";
-import { BrandLogo } from "@/components/app/brand-logo";
-import { BudgetForm } from "@/components/app/budget-form";
-import { DocumentPreview } from "@/components/app/document-preview";
-import { ImagesDialog } from "@/components/app/images-dialog";
-import { LoginScreen } from "@/components/app/login-screen";
-import { ReceiptForm } from "@/components/app/receipt-form";
+import { ActionBar } from "./action-bar";
+import { BrandLogo } from "@/components/brand-logo";
+import { BudgetForm } from "./budget-form";
+import { DocumentPreview } from "./document-preview";
+import { ImagesDialog } from "./images-dialog";
+import { LoginScreen } from "./login-screen";
+import { MobilePreview } from "./mobile-preview";
+import { ReceiptForm } from "./receipt-form";
 import { clearAuth, isAuthenticated } from "@/lib/auth";
 import { parseCatalog, type CatalogRow } from "@/lib/catalog";
 import { canvasToBlob, type LoadedImage } from "@/lib/document/canvas";
@@ -85,8 +86,27 @@ export function AppShell() {
   const [flashId, setFlashId] = useState<string | null>(null);
   const [images, setImages] = useState<HTMLCanvasElement[] | null>(null);
 
+  // No celular a prévia fica em tela cheia; no desktop, na coluna lateral.
+  const [desktop, setDesktop] = useState(() =>
+    typeof window === "undefined"
+      ? true
+      : window.matchMedia("(min-width: 1024px)").matches,
+  );
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   const flashTimer = useRef<number | null>(null);
   const armTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => {
+      setDesktop(media.matches);
+      if (media.matches) setPreviewOpen(false);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const showNotice = useCallback((text: string, kind: Notice["kind"] = "") => {
     setNotice({ text, kind });
@@ -510,7 +530,7 @@ export function AppShell() {
       </header>
 
       <main className="mx-auto grid max-w-[1280px] gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
-        <div className="order-2 grid gap-3 lg:order-1">
+        <div className="order-2 grid gap-3 pb-16 lg:order-1 lg:pb-0">
           {mode === "orc" ? (
             <BudgetForm
               doc={orc}
@@ -559,17 +579,32 @@ export function AppShell() {
           />
         </div>
 
-        <div className="order-1 lg:order-2">
-          <DocumentPreview
-            mode={mode}
-            orc={orc}
-            rec={rec}
-            header={header}
-            signature={signature}
-            signerName={sigName}
-          />
-        </div>
+        {desktop ? (
+          <div className="order-1 lg:order-2">
+            <DocumentPreview
+              mode={mode}
+              orc={orc}
+              rec={rec}
+              header={header}
+              signature={signature}
+              signerName={sigName}
+            />
+          </div>
+        ) : null}
       </main>
+
+      {desktop ? null : (
+        <MobilePreview
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          mode={mode}
+          orc={orc}
+          rec={rec}
+          header={header}
+          signature={signature}
+          signerName={sigName}
+        />
+      )}
 
       <ImagesDialog pages={images} onClose={() => setImages(null)} />
     </div>

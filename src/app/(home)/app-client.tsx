@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
  * então só pode ser renderizado no navegador.
  */
 const AppShell = dynamic(
-  () => import("@/components/app/app-shell").then((mod) => mod.AppShell),
+  () => import("./app-shell").then((mod) => mod.AppShell),
   {
     ssr: false,
     loading: () => (

@@ -1,12 +1,23 @@
 import { norm } from "@/lib/format";
+import { buildNameIndex, searchNameIndex, type IndexedName } from "@/lib/search";
 import type { CatalogProduct } from "@/lib/types";
 
 /** Linha do catalog.json: [nome, slug, categoria]. */
 export type CatalogRow = [string, string, string];
 
-export interface SearchResult {
-  product: CatalogProduct;
-  score: number;
+/** O índice é montado uma vez por lista (o catálogo só troca depois do fetch). */
+const indexCache = new WeakMap<
+  readonly CatalogProduct[],
+  IndexedName<CatalogProduct>[]
+>();
+
+function catalogIndex(products: readonly CatalogProduct[]) {
+  let index = indexCache.get(products);
+  if (!index) {
+    index = buildNameIndex(products, (product) => product.name);
+    indexCache.set(products, index);
+  }
+  return index;
 }
 
 export function parseCatalog(rows: CatalogRow[]): CatalogProduct[] {
@@ -25,8 +36,8 @@ export function catalogCategories(products: CatalogProduct[]): string[] {
 }
 
 /**
- * Busca por palavras: todas precisam aparecer no nome/slug.
- * Resultados que começam com o termo vêm primeiro.
+ * Busca em duas camadas (exata por trecho + fuzzy). A categoria filtra a
+ * lista antes da busca; sem termo, não há resultados.
  */
 export function searchProducts(
   products: CatalogProduct[],
@@ -34,31 +45,13 @@ export function searchProducts(
   category: string,
   limit = 60,
 ): { results: CatalogProduct[]; total: number } {
-  const q = norm(query).trim();
-  if (!q && !category) return { results: [], total: 0 };
-  const tokens = q.split(/\s+/).filter(Boolean);
-  const scored: SearchResult[] = [];
-
-  for (const product of products) {
-    if (category && product.cat !== category) continue;
-    let ok = true;
-    let score = 0;
-    for (const token of tokens) {
-      const i = product.key.indexOf(token);
-      if (i < 0) {
-        ok = false;
-        break;
-      }
-      score += i === 0 ? 0 : product.key[i - 1] === " " ? 1 : 3;
-    }
-    if (ok) scored.push({ product, score: score + product.name.length / 200 });
-  }
-
-  scored.sort((a, b) => a.score - b.score);
-  return {
-    results: scored.slice(0, limit).map((s) => s.product),
-    total: scored.length,
-  };
+  if (!norm(query).trim()) return { results: [], total: 0 };
+  const index = catalogIndex(products);
+  const filtered = category
+    ? index.filter((entry) => entry.item.cat === category)
+    : index;
+  const { entries, total } = searchNameIndex(filtered, query, limit);
+  return { results: entries.map((entry) => entry.item), total };
 }
 
 export interface HighlightSegment {

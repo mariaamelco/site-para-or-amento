@@ -1,4 +1,4 @@
-import { AppClient } from "@/components/app/app-client";
+import { AppClient } from "./app-client";
 
 export default function Home() {
   return <AppClient />;

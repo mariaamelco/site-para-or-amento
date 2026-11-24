@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { AutoGrowTextarea } from "@/components/app/auto-grow-textarea";
-import { MoneyInput } from "@/components/app/money-input";
+import { AutoGrowTextarea } from "@/components/auto-grow-textarea";
+import { MoneyInput } from "@/components/money-input";
 import type { ReceiptDoc, ReceiptItem } from "@/lib/types";
 
 interface Props {

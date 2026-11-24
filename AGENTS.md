@@ -8,6 +8,18 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Documentação obrigatória (`docs/`)
+
+- **Antes de alterar qualquer arquivo**, leia `docs/ARCHITECTURE.md` e o documento
+  do assunto (`docs/PAGES.md`, `docs/COMPONENTS.md`, `docs/DATA-MODEL.md`,
+  `docs/DOCUMENT-ENGINE.md`, `docs/CATALOG.md`, `docs/DEVELOPMENT.md`).
+- A documentação em `docs/` é **obrigatória** e prevalece sobre hábitos genéricos.
+- Se a alteração mudar comportamento, estrutura de arquivos, tipos, layout do
+  documento, catálogo ou processo, atualize o documento afetado **na mesma
+  alteração** (tabela em `docs/README.md`).
+- Divergência entre código e `docs/` é um defeito: corrija os dois na mesma tarefa.
+- O índice e as regras completas estão em `docs/README.md`.
+
 ## Organização de arquivos (regra do repositório)
 
 - **Páginas ficam em `src/app`**, cada uma na sua pasta/route group. Ex.: a página

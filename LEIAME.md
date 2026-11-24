@@ -24,6 +24,8 @@ Outros comandos:
 ## Estrutura
 
 ```
+docs/                       documentação técnica obrigatória (arquitetura, páginas,
+                            componentes, dados, motor do documento, catálogo)
 public/                     arquivos servidos como estão
   catalog.json              produtos da Digital Sat usados na busca (2.788 itens)
   header.png                cabeçalho J&M System usado nos documentos
@@ -51,6 +53,15 @@ next.config.ts              repasse de /foto/ID para a loja e cache dos assets
 ```
 
 Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
+
+## Documentação técnica
+
+A pasta `docs/` guarda a documentação **obrigatória** do projeto: arquitetura,
+páginas, componentes, dados, motor do documento, catálogo e desenvolvimento.
+Comece por [`docs/README.md`](docs/README.md).
+
+Qualquer mudança de comportamento, estrutura ou decisão técnica deve atualizar o
+documento correspondente **na mesma alteração**.
 
 ## Publicar na Vercel
 

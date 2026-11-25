@@ -8,7 +8,7 @@ Definidos em `src/lib/types.ts`.
 | --- | --- | --- |
 | `Mode` | `"orc" \| "rec"` | Aba ativa. |
 | `TotMode` | `"auto" \| "man"` | Como o total do orçamento é calculado. |
-| `BudgetItem` | `id`, `slug?`, `desc`, `qty`, `unit` | `slug` só existe em item vindo do catálogo. |
+| `BudgetItem` | `id`, `slug?`, `desc`, `qty`, `unit` | `slug` só existe em item vindo do catálogo; `qty` e `unit` são validados por zod (maior que zero). |
 | `BudgetDoc` | `cliente`, `data`, `cnpjOn`, `cnpj`, `items`, `unitCol`, `colTitle`, `obs`, `totMode`, `totManual`, `photos` | Documento de orçamento. |
 | `ReceiptItem` | `id`, `desc`, `valor` | Item do recibo (sem quantidade). |
 | `ReceiptDoc` | `cliente`, `data`, `cnpjOn`, `cnpj`, `items` | Documento de recibo. |
@@ -79,6 +79,71 @@ Formatadores:
 Diferença conhecida: para **quantidade inválida**, o subtotal exibido é `0`,
 enquanto `budgetTotal` trata a quantidade como `1`. Ao mexer nessa regra, decida e
 documente o comportamento dos dois lugares juntos.
+
+## Validação do orçamento (`src/lib/schemas/budget.ts`)
+
+**Regra do repositório:** toda validação/regra de negócio tem um arquivo zod em
+`src/lib/schemas/<assunto>.ts` e um teste correspondente (ver
+[DEVELOPMENT.md](./DEVELOPMENT.md#testes)).
+
+| Regra | Schema | Mensagem |
+| --- | --- | --- |
+| Lista com pelo menos um item | `budgetItemsSchema` (`.min(1)`) | “Adicione pelo menos um item ao orçamento.” |
+| Quantidade maior que zero | `budgetItemSchema.qty` | “Quantidade deve ser maior que zero.” |
+| Valor unitário maior que zero | `budgetItemSchema.unit` | “Valor unitário deve ser maior que zero.” |
+| Produto do catálogo entra uma vez | `addBudgetProductSchema` | “Este produto já está adicionado ao orçamento.” |
+
+- `validateBudgetItems(items)` devolve `{ ok: true }` ou
+  `{ ok: false, message, fieldId? }`. Quando o erro é de um item, a mensagem é
+  prefixada com `Item N:`. `fieldId` aponta para o campo (`qty-<id>` ou
+  `unit-<id>`) para receber foco.
+- `budgetFormSchema` junta o bloco de cliente (`clientFieldsShape`) com
+  `budgetItemsSchema`: é o que o `AppShell` usa para dizer se o documento está
+  válido (`formErrors` + `formIsValid`) e habilitar a exportação.
+- Cada linha de `BudgetItems` usa `budgetItemSchema` no próprio `Form`, então a
+  mensagem de erro aparece embaixo do input daquele item.
+- `AppShell.validate()` chama essa função antes de exportar: item inexistente,
+  quantidade zero/negativa/vazia ou valor unitário zero/negativo/vazio bloqueiam a
+  exportação e o campo inválido recebe foco.
+- `addedProductSlugs(items)` alimenta o estado “Já adicionado” da busca.
+- `canAddBudgetProduct(slug, items)` aplica a regra de duplicidade e é chamada em
+  `BudgetForm.addProduct`.
+- Itens personalizados e de mão de obra (sem `slug`) seguem a validação normal de
+  quantidade e valor.
+
+## Validação do cliente (`src/lib/schemas/client.ts`)
+
+Campos de cliente/data/CNPJ, usados pelo `Form` de `ClientFields` e pelo schema do
+documento inteiro (`budgetFormSchema`/`receiptFormSchema`). `clientFieldsShape` (o
+objeto de campos) e `requireCnpjWhenOn` são
+reaproveitados pelos schemas de documento, para não duplicar a regra do CNPJ.
+
+| Regra | Schema | Mensagem |
+| --- | --- | --- |
+| Nome do cliente obrigatório | `clientFieldsSchema.cliente` (`trim().min(1)`) | “Informe o nome do cliente.” |
+| Data obrigatória | `clientFieldsSchema.data` (`min(1)`) | “Informe a data.” |
+| CNPJ obrigatório quando `cnpjOn` | `superRefine` | “Informe o CNPJ do cliente.” |
+| CNPJ com 14 dígitos (quando preenchido) | `cnpjSchema` | “Informe os 14 dígitos do CNPJ.” |
+
+- O CNPJ é validado mascarado (`00.000.000/0000-00`): a checagem conta apenas os
+  dígitos. Vazio só é erro quando `cnpjOn` está ligado.
+- `ClientFieldsValue` (`z.infer`) tipa o contexto do formulário; erros por campo
+  são derivados com `formErrors` (`src/lib/form.ts`).
+- `AppShell.validate()` continua exigindo o cliente antes de exportar e foca
+  `o-cliente`/`r-cliente`.
+
+## Validação do recibo (`src/lib/schemas/receipt.ts`)
+
+| Regra | Schema | Mensagem |
+| --- | --- | --- |
+| Lista com pelo menos um item | `receiptItemsSchema` (`.min(1)`) | “Adicione pelo menos um item ao recibo.” |
+| Nome do cliente obrigatório | `clientFieldsShape.cliente` | “Informe o nome do cliente.” |
+| CNPJ obrigatório quando `cnpjOn` | `superRefine` (`requireCnpjWhenOn`) | “Informe o CNPJ do cliente.” |
+
+- `receiptItemSchema` hoje só estrutura `{ id, desc, valor }` (descrição e valor
+  não são obrigatórios no recibo).
+- `receiptFormSchema` (cliente + itens) é o schema que o `AppShell` usa para
+  calcular a validade do recibo e habilitar a exportação.
 
 ## Chaves do `localStorage`
 

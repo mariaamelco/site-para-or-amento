@@ -67,6 +67,9 @@ Testes: `src/lib/unit/search.test.ts` (vitest).
 
 - Categoria vazia = todas; valor interno `__all__`.
 - Lista suspensa em portal, com `↑`/`↓`/`Enter`/`Escape`.
+- Produto já presente no orçamento aparece riscado, com opacidade reduzida e o
+  selo “Já adicionado”; clicar nele não duplica o item. A regra fica em
+  `canAddBudgetProduct` (`src/lib/schemas/budget.ts`).
 - Mostra “último: R$ …” quando o slug já tem preço em `jm_prices`.
 - Link para a página do produto na loja.
 - Limite visual de 60 resultados, com o total informado no rodapé.

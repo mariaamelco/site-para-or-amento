@@ -1,11 +1,18 @@
 # Componentes
 
-Existem duas categorias, com regras diferentes:
+Existem três categorias, com regras diferentes:
 
 | Categoria | Pasta | Pode conhecer documento? | Quem usa |
 | --- | --- | --- | --- |
 | **Reutilizável do app** | `src/components/*.tsx` | Não | Qualquer página |
-| **Primitiva de UI** | `src/components/ui/*.tsx` | Não | Seções e reutilizáveis |
+| **Layout (especializado)** | `src/components/layout/**` | Não | Seções e reutilizáveis |
+| **Primitiva de UI** | `src/components/ui/*.tsx` | Não | Seções, reutilizáveis e layouts |
+
+Um **layout** é a especialização de uma primitiva (ou de um reutilizável) para uma
+funcionalidade do projeto. A primitiva continua genérica; o layout sabe qual campo
+do formulário editar, qual variante usar e quando mostrar erro. Regra da
+especialização: a primitiva precisa de **teste vitest** da lógica que isola e de
+**teste Playwright** (`e2e/`) cobrindo os estados que o layout decide.
 
 Se o componente só existe para uma página, ele **não** pertence a
 `src/components`: fica na pasta da página (ver [PAGES.md](./PAGES.md)).
@@ -68,6 +75,80 @@ Logotipo em SVG + texto “J&M SYSTEM / SEGURANÇA E TECNOLOGIA”.
 - Textos em branco fixo; pensado para fundo escuro (cabeçalho e login).
 - Usado no cabeçalho do app e na tela de login.
 
+## Componentes de layout (`src/components/layout`)
+
+Componentes que pegam uma primitiva e a especializam para o app. Nunca recebem
+`value`/`onChange`: leem e gravam no contexto do formulário.
+
+### `Form` + `useFormContext` — `layout/Form/form.layout.tsx`
+
+Contexto de formulário tipado por um schema zod. `values` continua sendo do
+chamador; o contexto calcula `dirty` e `errors`.
+
+| Prop | Tipo | Obrigatória | Descrição |
+| --- | --- | --- | --- |
+| `schema` | `z.ZodType<T>` | sim | Tipa `values` e define o erro de cada campo. |
+| `values` | `T` | sim | Valores atuais, sem cópia interna. |
+| `onValuesChange` | `(patch: Partial<T>) => void` | sim | Recebe só o campo alterado. |
+| `idPrefix` | `string` | não | Prefixo dos ids gerados (`<prefixo>-<campo>`). |
+| `children` | `ReactNode` | sim | Campos do formulário. |
+
+O que `useFormContext<T>()` expõe:
+
+| Membro | Tipo | Descrição |
+| --- | --- | --- |
+| `values` | `T` | Valores atuais. |
+| `dirty` | `Partial<Record<keyof T, boolean>>` | Campos já editados. |
+| `errors` | `Partial<Record<keyof T, string>>` | Primeiro erro de cada campo. |
+| `isValid` | `boolean` | `true` quando nenhum campo tem erro (independe de `dirty`). |
+| `idPrefix` | `string \| undefined` | Prefixo dos ids gerados. |
+| `setField` | `(name, value) => void` | Grava um campo e marca como editado. |
+| `isInvalid` | `(name) => boolean` | Editado **e** com erro no schema. |
+
+- `useFormValidity()` devolve só o `isValid`, para quem não precisa do resto
+  (ex.: habilitar botões de exportação).
+- A lógica pura (erros, `dirty`, campo inválido, formulário válido) está em
+  `src/lib/form.ts` e é coberta por `src/lib/unit/form.test.ts`.
+- O contexto não persiste nada: quem grava no `localStorage` continua sendo
+  `AppShell` via `usePersistedState`.
+- Cada seção cria o seu: `ClientFields` (`clientFieldsSchema`) e cada item de
+  `BudgetItems` (`budgetItemSchema`). Contextos aninhados não se misturam — o
+  input usa sempre o `Form` mais próximo.
+
+### `useFieldBinding` + `FieldError` — `layout/Form/field.tsx`
+
+Ligação de um campo ao contexto, compartilhada pelos layouts de input: devolve
+`fieldId` (respeitando `idPrefix` ou um `id` explícito), `errorId`, `invalid`,
+`error`, `value` e `setValue`. `FieldError` renderiza a mensagem em `role="alert"`
+abaixo do input. `TextField<T>` (chaves com valor `string`) também mora aqui.
+
+### `InputLayout` — `layout/Form/input/input.layout.tsx`
+
+`Input` especializado para o formulário.
+
+| Prop | Tipo | Obrigatória | Descrição |
+| --- | --- | --- | --- |
+| `name` | `keyof T` (valor `string`) | sim | Campo editado por este input. |
+| `label` | `string` | sim | Rótulo do campo. |
+| `size` | `"default" \| "sm"` | não | Altura do input (`h-10`/`h-9`) e tamanho do rótulo. |
+| `id` | `string` | não | Sobrescreve o id gerado. |
+| `format` | `(value: string) => string` | não | Transforma o texto antes de gravar (ex.: `maskCNPJ`). |
+| `className` | `string` | não | Aplicado ao container. |
+| demais props | `ComponentProps<"input">` | não | Repassadas ao `Input` (`type`, `inputMode`, `placeholder`, `autoComplete`). |
+
+- Variantes: `default` e `invalid` (`data-variant` no container). A variante
+  `invalid` aplica `aria-invalid`, `aria-describedby` e mostra a mensagem do schema
+  em `role="alert"` — só depois que o campo foi editado.
+- Perde o foco visual de erro ao corrigir: o erro vem do schema, não de estado
+  local do input.
+
+### `MoneyInputLayout` — `layout/Form/input/money-input.layout.tsx`
+
+`MoneyInput` (primitiva com o `R$` fixo) especializado para o formulário. Mesmas
+props de `InputLayout` (sem `format`/`type`), com o mesmo comportamento de erro:
+`aria-invalid` chega ao `input` interno e a mensagem aparece embaixo. É o que os
+itens do orçamento usam no valor unitário.
+
 ## Primitivas de UI (`src/components/ui`)
 
 Geradas pelo shadcn/ui no estilo **`base-nova`**, sobre **Base UI**
@@ -99,6 +180,8 @@ bunx shadcn@latest add <nome>
 - O arquivo entra em `src/components/ui/` e os estilos globais em
   `src/app/globals.css`.
 - Depois de adicionar, **atualize a tabela acima** neste documento.
+- Se a primitiva for especializada por um layout, cubra com um teste em `e2e/` os
+  estados que o layout expõe (válido, inválido, mensagem de erro).
 
 ### Variantes do `Button`
 
@@ -121,6 +204,10 @@ bunx shadcn@latest add <nome>
 - Textos visíveis, `aria-label` e mensagens em português.
 - Não colocar `parseMoney`, totais, `localStorage` ou chamadas ao canvas dentro de
   componentes de UI.
+- Componentes de layout não recebem `value`/`onChange`: leem e gravam pelo
+  `useFormContext`.
+- Toda primitiva especializada por um layout precisa de cobertura em `e2e/`
+  (Playwright), com os estados que o layout decide.
 
 ## Promover um componente de seção para reutilizável
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Receipt, FileText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActionBar } from "./action-bar";
@@ -22,6 +22,9 @@ import { ensurePhotos, setPhotoListener } from "@/lib/document/photos";
 import { buildPDF } from "@/lib/document/pdf";
 import { renderPages } from "@/lib/document/render";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
+import { formErrors, formIsValid } from "@/lib/form";
+import { budgetFormSchema, validateBudgetItems } from "@/lib/schemas/budget";
+import { receiptFormSchema } from "@/lib/schemas/receipt";
 import type {
   BudgetDoc,
   Mode,
@@ -202,8 +205,10 @@ export function AppShell() {
         focusField("o-cliente");
         return false;
       }
-      if (!orc.items.length) {
-        showNotice("Adicione pelo menos um item ao orçamento.", "err");
+      const items = validateBudgetItems(orc.items);
+      if (!items.ok) {
+        showNotice(items.message, "err");
+        if (items.fieldId) focusField(items.fieldId);
         return false;
       }
     } else {
@@ -232,6 +237,11 @@ export function AppShell() {
   }
 
   const currentDoc = mode === "orc" ? orc : rec;
+  const orcErrors = useMemo(() => formErrors(budgetFormSchema, orc), [orc]);
+  const recErrors = useMemo(() => formErrors(receiptFormSchema, rec), [rec]);
+  /** Habilita a exportação: o documento atual precisa estar sem erros. */
+  const formValid =
+    mode === "orc" ? formIsValid(orcErrors) : formIsValid(recErrors);
 
   async function handleDownloadPdf() {
     if (busy || !validate()) return;
@@ -396,6 +406,7 @@ export function AppShell() {
 
             <ActionBar
               busy={busy}
+              isValid={formValid}
               notice={notice}
               resetArmed={armed}
               onDownloadPdf={handleDownloadPdf}

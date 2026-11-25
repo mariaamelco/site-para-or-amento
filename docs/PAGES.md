@@ -128,7 +128,8 @@ correspondente.
 | `updateItem` / `moveItem` / `removeItem` | `budget-form.tsx` | Edita, reordena e remove itens do orçamento; atualiza `priceMemo` ao mudar o valor unitário. |
 | `updateItem` / `removeItem` / `addItem` | `receipt-form.tsx` | Equivalentes no recibo. |
 | `handleSignatureFile` / `resetSignature` | `receipt-form.tsx` | Valida, reduz e processa (ou remove) a assinatura. |
-| `validate` | `app-shell.tsx` | Exige cliente e ao menos um item (foco no campo `o-cliente` ou `r-cliente`). |
+| `validate` | `app-shell.tsx` | Exige cliente e valida os itens do orçamento com zod (ao menos um item, quantidade e valor unitário maiores que zero; foco no campo inválido). |
+| `formValid` (derivado) | `app-shell.tsx` | `formErrors` + `formIsValid` sobre `budgetFormSchema`/`receiptFormSchema`; alimenta o `isValid` do `ActionBar`. |
 | `renderExportPages` | `app-shell.tsx` | Prepara fontes/fotos e renderiza as páginas na escala de exportação. |
 | `handleDownloadPdf` / `handleDownloadPng` / `handleCopyImage` | `app-shell.tsx` | Exportações (dependem do modo e do documento validado). |
 | `handleReset` | `app-shell.tsx` | Limpeza em dois cliques (`armed` por 4 s). |
@@ -172,12 +173,25 @@ Regras do total:
   valor atual é pré-preenchido.
 - O botão “Adicionar produto” em `BudgetItems` só leva foco/rolagem até a busca
   (`searchRef`).
+- `addProduct` impede duplicidade: se o `slug` já está em `doc.items`, mostra
+  “Este produto já está adicionado ao orçamento.” e não cria outro item.
+- `addedSlugs` (derivado de `doc.items`) é repassado a `ProductSearch` para marcar
+  os produtos que já estão na lista.
+- A exportação exige cliente, ao menos um item e, para cada item, quantidade e
+  valor unitário maiores que zero (`validateBudgetItems`). Enquanto o documento
+  atual tiver erro no schema, os botões de exportação do `ActionBar` ficam
+  desabilitados.
 
 ## `ClientFields`
 
 - Campos: cliente, data (`type="date"`) e CNPJ opcional (mascarado por `maskCNPJ`).
-- IDs prefixados com `o` (orçamento) ou `r` (recibo); a validação usa esses IDs
-  para focar o campo com erro.
+- IDs prefixados com `o` (orçamento) ou `r` (recibo); a validação do `AppShell` usa
+  esses IDs para focar o campo com erro (`o-cliente`/`r-cliente`).
+- Usa o contexto de formulário: `<Form schema={clientFieldsSchema}>` +
+  `InputLayout`. Os campos continuam vindo das props e cada edição sobe por
+  `onChange({ campo: valor })` — o `AppShell` segue dono do documento.
+- Erro por campo vem de `src/lib/schemas/client.ts`; o campo só aparece inválido
+  depois de editado (`dirty`).
 - Reutilizado pelos dois modos; não adicionar regra específica de um documento aqui
   sem verificar o outro.
 
@@ -189,6 +203,9 @@ Regras do total:
 - Lista suspensa em portal (`@floating-ui/react`), posicionada abaixo do campo,
   com navegação por `↑`, `↓`, `Enter` e `Escape`.
 - Ao escolher, limpa o termo, fecha a lista e chama `onAdd`.
+- Produtos que já estão em `doc.items` aparecem riscados, com opacidade reduzida
+  e o selo “Já adicionado” (o item continua visível, mas não é adicionado de novo;
+  clicar mostra o aviso de duplicidade).
 - Mostra “último: R$ …” usando `priceMemo`.
 - Link “ver na loja ↗” abre a página do produto na Digital Sat.
 - Estado de carregamento/falha altera a mensagem de ajuda.
@@ -200,7 +217,12 @@ Regras do total:
   `Mão de obra / serviço`). Celular: `AddProductSplitButton` + mão de obra.
 - Cada item: número, miniatura (se veio do catálogo), descrição (textarea
   autoajustável), mover para cima/baixo, remover, quantidade, valor unitário
-  (`MoneyInput`) e subtotal (`itemSubtotal`).
+  (`MoneyInputLayout`) e subtotal (`itemSubtotal`).
+- Cada linha é um `<Form schema={budgetItemSchema}>` próprio: quantidade e valor
+  unitário usam `InputLayout`/`MoneyInputLayout` com `size="sm"` e ids
+  `qty-<id>`/`unit-<id>` (os mesmos que o `AppShell.validate()` foca). Zerar ou
+  deixar vazio marca a borda de erro (`aria-invalid`) e mostra a mensagem do
+  schema embaixo do input — só depois que o campo foi editado.
 - Configurações (sanfona):
   - título da coluna de descrição (`colTitle`, máx. 24);
   - mostrar coluna “UNIT.” (`unitCol`);
@@ -237,7 +259,10 @@ cartão “Total recebido” (`receiptTotal`).
 ## `ActionBar`
 
 - `Baixar PDF`, `Baixar imagem (PNG)`, `Copiar imagem`, `Novo documento`.
-- Todos desabilitados durante `busy`.
+- PDF/PNG/copiar ficam desabilitados durante `busy` **e** quando o formulário do
+  modo atual tem erro (`isValid` vindo do `AppShell`); nesse caso a área de status
+  mostra “Complete os dados do documento para exportar.”.
+- “Novo documento” continua habilitado (só depende de `busy`).
 - “Novo documento” exige segundo clique (rótulo muda para “Clique de novo para limpar”).
 - Área de status (`role="status"`, `aria-live="polite"`) mostra avisos.
 - Exibe `v{APP_VERSION}`.

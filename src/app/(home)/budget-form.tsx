@@ -14,6 +14,7 @@ import {
   ArrowDown,
   ArrowUp,
   Calculator,
+  Check,
   ChevronDown,
   FileText,
   PackagePlus,
@@ -36,6 +37,9 @@ import {
   useInteractions,
 } from "@floating-ui/react";
 import { AutoGrowTextarea } from "@/components/auto-grow-textarea";
+import { Form } from "@/components/layout/Form/form.layout";
+import { InputLayout } from "@/components/layout/Form/input/input.layout";
+import { MoneyInputLayout } from "@/components/layout/Form/input/money-input.layout";
 import { MoneyInput } from "@/components/money-input";
 import { ProductThumb } from "@/components/product-thumb";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +62,11 @@ import {
   searchProducts,
 } from "@/lib/catalog";
 import { brl, fmt, newId, norm, parseMoney } from "@/lib/format";
+import {
+  addedProductSlugs,
+  budgetItemSchema,
+  canAddBudgetProduct,
+} from "@/lib/schemas/budget";
 import { budgetTotal } from "@/lib/totals";
 import type {
   BudgetDoc,
@@ -181,6 +190,8 @@ interface ProductSearchProps {
   loading: boolean;
   failed: boolean;
   priceMemo: PriceMemo;
+  /** Slugs que já estão no orçamento. */
+  addedSlugs: ReadonlySet<string>;
   onAdd: (product: CatalogProduct) => void;
   /** Permite que o botão "Adicionar produto" leve o foco ao campo de busca. */
   inputRef?: Ref<HTMLInputElement>;
@@ -191,6 +202,7 @@ function ProductSearch({
   loading,
   failed,
   priceMemo,
+  addedSlugs,
   onAdd,
   inputRef,
 }: ProductSearchProps) {
@@ -248,6 +260,11 @@ function ProductSearch({
   const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
 
   function add(product: CatalogProduct) {
+    // Já adicionado: mantém a busca aberta e deixa o aviso visível.
+    if (addedSlugs.has(product.slug)) {
+      onAdd(product);
+      return;
+    }
     setQuery("");
     setActive(-1);
     setOpen(false);
@@ -362,79 +379,100 @@ function ProductSearch({
                 pointerInside.current = false;
               }}
             >
-            {results.length === 0 ? (
-              <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
-                {loading
-                  ? "Carregando catálogo…"
-                  : failed
-                    ? "Catálogo indisponível. Use “Item personalizado”."
-                    : "Nenhum produto encontrado."}
-              </p>
-            ) : (
-              results.map((product, index) => {
-                const last = priceMemo[product.slug];
-                const lastValue = last ? parseMoney(last) : NaN;
-                return (
-                  <div
-                    key={product.slug + index}
-                    id={`catalog-option-${index}`}
-                    role="option"
-                    aria-selected={index === active}
-                    tabIndex={-1}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => add(product)}
-                    onMouseEnter={() => setActive(index)}
-                    className={cn(
-                      "grid cursor-pointer grid-cols-[48px_1fr_auto] items-center gap-3 border-b px-3 py-2 last:border-b-0",
-                      index === active && "bg-brand/5",
-                    )}
-                  >
-                    <ProductThumb slug={product.slug} size={96} />
-                    <div className="min-w-0">
-                      <p className="text-[13.5px] leading-snug font-medium text-neutral-900">
-                        {highlightSegments(product.name, tokens).map((part, i) =>
-                          part.hit ? (
-                            <mark
-                              key={i}
-                              className="rounded bg-brand/15 px-0.5 text-brand"
-                            >
-                              {part.text}
-                            </mark>
-                          ) : (
-                            <span key={i}>{part.text}</span>
-                          ),
-                        )}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <Badge variant="secondary" className="text-[11px]">
-                          {product.cat}
-                        </Badge>
-                        <a
-                          href={`https://loja.digitalsat.com.br/produto/${product.slug}`}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          onClick={(event) => event.stopPropagation()}
-                          className="text-[11.5px] text-muted-foreground underline-offset-2 hover:text-brand hover:underline"
+              {results.length === 0 ? (
+                <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
+                  {loading
+                    ? "Carregando catálogo…"
+                    : failed
+                      ? "Catálogo indisponível. Use “Item personalizado”."
+                      : "Nenhum produto encontrado."}
+                </p>
+              ) : (
+                results.map((product, index) => {
+                  const last = priceMemo[product.slug];
+                  const lastValue = last ? parseMoney(last) : NaN;
+                  const added = addedSlugs.has(product.slug);
+                  return (
+                    <div
+                      key={product.slug + index}
+                      id={`catalog-option-${index}`}
+                      role="option"
+                      aria-selected={index === active}
+                      aria-disabled={added || undefined}
+                      title={
+                        added
+                          ? "Este produto já está no orçamento."
+                          : undefined
+                      }
+                      tabIndex={-1}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => add(product)}
+                      onMouseEnter={() => setActive(index)}
+                      className={cn(
+                        "grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b px-3 py-2 last:border-b-0",
+                        added ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                        index === active && !added && "bg-brand/5",
+                      )}
+                    >
+                      <ProductThumb slug={product.slug} size={96} />
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "text-[13.5px] leading-snug font-medium text-neutral-900",
+                            added && "line-through",
+                          )}
                         >
-                          ver na loja ↗
-                        </a>
+                          {highlightSegments(product.name, tokens).map(
+                            (part, i) =>
+                              part.hit ? (
+                                <mark
+                                  key={i}
+                                  className="rounded bg-brand/15 px-0.5 text-brand"
+                                >
+                                  {part.text}
+                                </mark>
+                              ) : (
+                                <span key={i}>{part.text}</span>
+                              ),
+                          )}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge variant="secondary" className="text-[11px]">
+                            {product.cat}
+                          </Badge>
+                          <a
+                            href={`https://loja.digitalsat.com.br/produto/${product.slug}`}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-[11.5px] text-muted-foreground underline-offset-2 hover:text-brand hover:underline"
+                          >
+                            ver na loja ↗
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {Number.isFinite(lastValue) ? (
+                          <span className="text-[11.5px] text-muted-foreground">
+                            último: {brl(lastValue)}
+                          </span>
+                        ) : null}
+                        {added ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-neutral-200 px-2 py-1 text-[11.5px] font-semibold text-neutral-600">
+                            <Check className="size-3" />
+                            Já adicionado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-[11.5px] font-semibold text-white">
+                            <Plus className="size-3" />
+                            Adicionar
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {Number.isFinite(lastValue) ? (
-                        <span className="text-[11.5px] text-muted-foreground">
-                          último: {brl(lastValue)}
-                        </span>
-                      ) : null}
-                      <span className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-[11.5px] font-semibold text-white">
-                        <Plus className="size-3" />
-                        Adicionar
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
             </div>
           </FloatingPortal>
         ) : null}
@@ -448,7 +486,6 @@ function ProductSearch({
                 ? "Não foi possível carregar o catálogo."
                 : `${products.length} produtos no catálogo. Digite para buscar.`}
         </p>
-
       </CardContent>
     </Card>
   );
@@ -485,7 +522,10 @@ function BudgetItems({
   // O painel abre abaixo da lista, então rola até ele para ficar visível.
   useEffect(() => {
     if (settingsOpen) {
-      settingsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      settingsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
     }
   }, [settingsOpen]);
 
@@ -500,7 +540,7 @@ function BudgetItems({
           </CardTitle>
           <div className="flex w-full flex-wrap items-center gap-1.5 sm:ml-auto sm:w-auto">
             {/* Celular: botão dividido (produto + item personalizado) e mão de obra. */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:hidden">
+            <div className="flex flex-wrap flex-row-reverse ml-auto items-center gap-1.5 sm:hidden">
               <AddProductSplitButton
                 onAddProduct={onAddProduct}
                 onAddCustom={onAddCustom}
@@ -560,111 +600,103 @@ function BudgetItems({
         ) : (
           <div className="grid max-h-[min(58vh,520px)] gap-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
             {doc.items.map((item, index) => (
-              <div
+              <Form
                 key={item.id}
-                data-item-id={item.id}
-                className={cn(
-                  "grid gap-2 rounded-lg border bg-card p-2.5",
-                  flashId === item.id && "item-flash",
-                )}
+                schema={budgetItemSchema}
+                values={item}
+                onValuesChange={(patch) => onUpdateItem(item.id, patch)}
               >
                 <div
+                  data-item-id={item.id}
                   className={cn(
-                    "grid items-start gap-2",
-                    item.slug
-                      ? "grid-cols-[16px_44px_1fr_auto]"
-                      : "grid-cols-[16px_1fr_auto]",
+                    "grid gap-2 rounded-lg border bg-card p-2.5",
+                    flashId === item.id && "item-flash",
                   )}
                 >
-                  <span className="pt-2.5 text-center text-xs font-bold text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  {item.slug ? (
-                    <ProductThumb slug={item.slug} size={96} className="size-11" />
-                  ) : null}
-                  <AutoGrowTextarea
-                    aria-label={`Descrição do item ${index + 1}`}
-                    className="min-h-10 text-[13.5px]"
-                    value={item.desc}
-                    onChange={(event) =>
-                      onUpdateItem(item.id, { desc: event.target.value })
-                    }
-                  />
-                  <div className="flex gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Mover para cima"
-                      disabled={index === 0}
-                      onClick={() => onMoveItem(item.id, -1)}
-                    >
-                      <ArrowUp />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Mover para baixo"
-                      disabled={index === doc.items.length - 1}
-                      onClick={() => onMoveItem(item.id, 1)}
-                    >
-                      <ArrowDown />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Remover item"
-                      className="text-brand hover:bg-brand/10 hover:text-brand"
-                      onClick={() => onRemoveItem(item.id)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid items-end gap-2 pl-6 sm:grid-cols-[92px_130px_1fr]">
-                  <div className="grid gap-1">
-                    <Label
-                      htmlFor={`qty-${item.id}`}
-                      className="text-[11.5px] text-muted-foreground"
-                    >
-                      Qtd.
-                    </Label>
-                    <Input
-                      id={`qty-${item.id}`}
-                      className="h-9"
-                      inputMode="decimal"
-                      value={item.qty}
+                  <div
+                    className={cn(
+                      "grid items-start gap-2",
+                      item.slug
+                        ? "grid-cols-[16px_44px_1fr_auto]"
+                        : "grid-cols-[16px_1fr_auto]",
+                    )}
+                  >
+                    <span className="pt-2.5 text-center text-xs font-bold text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    {item.slug ? (
+                      <ProductThumb
+                        slug={item.slug}
+                        size={96}
+                        className="size-11"
+                      />
+                    ) : null}
+                    <AutoGrowTextarea
+                      aria-label={`Descrição do item ${index + 1}`}
+                      className="min-h-10 text-[13.5px]"
+                      value={item.desc}
                       onChange={(event) =>
-                        onUpdateItem(item.id, { qty: event.target.value })
+                        onUpdateItem(item.id, { desc: event.target.value })
                       }
                     />
+                    <div className="flex gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Mover para cima"
+                        disabled={index === 0}
+                        onClick={() => onMoveItem(item.id, -1)}
+                      >
+                        <ArrowUp />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Mover para baixo"
+                        disabled={index === doc.items.length - 1}
+                        onClick={() => onMoveItem(item.id, 1)}
+                      >
+                        <ArrowDown />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Remover item"
+                        className="text-brand hover:bg-brand/10 hover:text-brand"
+                        onClick={() => onRemoveItem(item.id)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="grid gap-1">
-                    <Label
-                      htmlFor={`unit-${item.id}`}
-                      className="text-[11.5px] text-muted-foreground"
-                    >
-                      Valor unit.
-                    </Label>
-                    <MoneyInput
-                      id={`unit-${item.id}`}
-                      className="[&_input]:h-9"
-                      value={item.unit}
-                      onValueChange={(unit) => onUpdateItem(item.id, { unit })}
+                  <div className="grid items-start gap-2 pl-6 sm:grid-cols-[92px_130px_1fr]">
+                    <InputLayout<BudgetItem>
+                      name="qty"
+                      label="Qtd."
+                      size="sm"
+                      id={`qty-${item.id}`}
+                      inputMode="decimal"
                     />
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[11.5px] text-muted-foreground">
-                      Subtotal
-                    </span>
-                    <span className="text-[14px] font-semibold">
-                      {brl(itemSubtotal(item))}
-                    </span>
+                    <MoneyInputLayout<BudgetItem>
+                      name="unit"
+                      label="Valor unit."
+                      size="sm"
+                      id={`unit-${item.id}`}
+                    />
+                    <div className="text-right">
+                      <span className="block text-[11.5px] text-muted-foreground">
+                        Subtotal
+                      </span>
+                      <span className="text-[14px] font-semibold">
+                        {brl(itemSubtotal(item))}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Form>
             ))}
           </div>
         )}
@@ -785,6 +817,7 @@ export function BudgetForm({
 }: Props) {
   const total = budgetTotal(doc);
   const searchRef = useRef<HTMLInputElement>(null);
+  const addedSlugs = useMemo(() => addedProductSlugs(doc.items), [doc.items]);
 
   // O botão "Adicionar produto" só leva o foco (e a rolagem) até a busca.
   function focusProductSearch() {
@@ -799,6 +832,10 @@ export function BudgetForm({
   }
 
   function addProduct(product: CatalogProduct) {
+    if (!canAddBudgetProduct(product.slug, doc.items)) {
+      onNotice("Este produto já está adicionado ao orçamento.", "err");
+      return;
+    }
     const item: BudgetItem = {
       id: newId(),
       slug: product.slug,
@@ -883,6 +920,7 @@ export function BudgetForm({
         loading={loading}
         failed={failed}
         priceMemo={priceMemo}
+        addedSlugs={addedSlugs}
         onAdd={addProduct}
         inputRef={searchRef}
       />

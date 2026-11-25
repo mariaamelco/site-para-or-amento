@@ -8,6 +8,7 @@
 
 ```bash
 bun install
+bunx playwright install chromium   # só na primeira vez: navegador dos testes e2e
 bun run dev      # http://localhost:3000
 ```
 
@@ -23,17 +24,20 @@ bun run dev      # http://localhost:3000
 | `bun test` | Roda `test:bun` e `test:unit`. |
 | `bun run test:bun` | `bun test src/lib/__tests__/lib.test.ts`. |
 | `bun run test:unit` | `vitest run`. |
+| `bun run test:e2e` | Playwright: builda, sobe na porta 3100 e roda `e2e/*.spec.ts`. |
+| `bun run test:e2e:ui` | Playwright em modo interativo. |
 | `bunx shadcn@latest add <nome>` | Adiciona primitiva em `src/components/ui`. |
 | `bun scripts/atualizar-catalogo.mjs` | Atualiza o catálogo manualmente. |
 
 ## Testes
 
-Há dois executores por motivos históricos. **Mantenha a divisão:**
+Há três executores por motivos históricos. **Mantenha a divisão:**
 
 | Executor | Onde o teste fica | Quando usar |
 | --- | --- | --- |
-| `bun test` | `src/lib/__tests__/*.test.ts` | Regras de negócio: dinheiro, totais, catálogo, nome de arquivo. |
-| `vitest` | `src/lib/unit/**/*.test.ts` | Testes unitários isolados (hoje, a busca). |
+| `bun test` | `src/lib/__tests__/*.test.ts` | Regras de negócio: dinheiro, totais, catálogo, validação (zod) e nome de arquivo. |
+| `vitest` | `src/lib/unit/**/*.test.ts` | Testes unitários isolados (busca, erros/dirty do formulário). |
+| Playwright | `e2e/*.spec.ts` | Interface em navegador real: campos, erro por campo, exportação bloqueada. |
 
 - O `vitest.config.mts` inclui **apenas** `src/**/unit/**/*.test.ts` e resolve o alias
   `@` para `src`.
@@ -42,11 +46,37 @@ Há dois executores por motivos históricos. **Mantenha a divisão:**
 - Para um teste de regra do app: acrescente em `src/lib/__tests__/lib.test.ts`.
 - Teste comportamento introduzido/corrigido pela mudança; não teste constantes nem
   detalhes internos.
-- Não crie teste de componente/UI: não há infraestrutura de DOM configurada.
+- **Comportamento de tela** (validação visível, `aria-invalid`, mensagens, botões
+  desabilitados) é coberto por Playwright em `e2e/`; não há jsdom/Testing Library.
+- O `bunfig.toml` ignora `e2e/**` no `bun test`, para o Bun não tentar rodar os
+  specs do Playwright.
+- Detalhes do e2e (`playwright.config.ts`):
+  - `bun run test:e2e` roda `bun run e2e:serve` (`next build && next start
+    --port 3100`), então o teste roda sobre o build de produção e não disputa a
+    porta 3000 do `bun run dev`;
+  - o servidor **não** é reaproveitado (`reuseExistingServer: false`) para nunca
+    testar um build antigo;
+  - `e2e/support/app.ts` grava o cookie `jm_auth` (pula o login) e semeia o
+    documento em `localStorage` com `addInitScript` antes do app carregar;
+  - os seletores usam os ids reais (`#o-cliente`, `#qty-<id>`, `#unit-<id>`) e as
+    mensagens em português que o usuário vê — se um id ou mensagem mudar, o teste
+    precisa mudar junto;
+- **Toda validação/regra de negócio tem um arquivo zod e um teste:** schema em
+  `src/lib/schemas/<assunto>.ts` e teste em `src/lib/__tests__/lib.test.ts`
+  (`bun test`). Exemplo: `src/lib/schemas/budget.ts` cobre “ao menos um item”,
+  quantidade/valor unitário maiores que zero e produto já adicionado; a validade
+  do documento inteiro (`budgetFormSchema`/`receiptFormSchema`) também é testada.
 
 Cobertura atual: `parseMoney`, formatadores, `maskCNPJ`, `productId`, busca do
-catálogo, destaque, totais, `documentName`, Sellers/tolerância e as duas camadas da
-busca.
+catálogo, destaque, totais, validação zod do orçamento, produto já adicionado,
+validade do documento (orçamento e recibo), `documentName`, Sellers/tolerância, as
+duas camadas da busca e a validação do cliente (`src/lib/unit/form.test.ts` cobre
+`formErrors`, `markDirty`, `formIsValid`, `isFieldInvalid` e `clientFieldsSchema`).
+
+No Playwright, `e2e/client-fields.spec.ts` cobre o erro do cliente e o CNPJ,
+`e2e/budget-items.spec.ts` cobre quantidade/valor unitário zerados (borda, mensagem
+e erro por linha) e `e2e/export-gating.spec.ts` cobre o bloqueio de PDF/imagem/cópia
+enquanto o documento tem erro.
 
 ## Validação mínima por tipo de mudança
 
@@ -55,6 +85,7 @@ busca.
 | Texto, CSS, ícone | `bun run lint` |
 | Regra em `src/lib` | `bun run typecheck` + `bun test` |
 | Componente/página | `bun run typecheck` + `bun run lint` |
+| Formulário/validação/exportação | `bun run typecheck` + `bun test` + `bun run test:e2e` |
 | Documento/PDF | `bun run typecheck` + `bun test` + conferir prévia e PDF manualmente |
 | Catálogo/script | `bun scripts/atualizar-catalogo.mjs` (quando seguro) + `bun test` |
 | Versão/deploy | `bun run build` |
@@ -89,7 +120,8 @@ Regras completas em [ARCHITECTURE.md](./ARCHITECTURE.md) e
 [AGENTS.md](../AGENTS.md). Resumo:
 
 - Página = pasta em `src/app`; seções na mesma pasta.
-- `src/components` só reutilizável; `src/components/ui` só primitivas.
+- `src/components` só reutilizável; `src/components/ui` só primitivas;
+  `src/components/layout` só especializações (ex.: `Form`/`InputLayout`).
 - Regra de negócio em `src/lib`.
 - Imports relativos dentro da página; `@/` para o resto.
 - TypeScript estrito, sem `any` novo.

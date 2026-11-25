@@ -24,7 +24,7 @@ docs/
 ├── README.md              ← este índice + regras obrigatórias
 ├── ARCHITECTURE.md        ← camadas, árvore de arquivos, fluxos e regras de organização
 ├── PAGES.md               ← rotas, tela e seções de página (src/app)
-├── COMPONENTS.md          ← componentes reutilizáveis e primitivas de UI
+├── COMPONENTS.md          ← reutilizáveis, componentes de layout e primitivas de UI
 ├── DATA-MODEL.md          ← tipos, documentos e persistência no navegador
 ├── DOCUMENT-ENGINE.md     ← desenho do A4, fotos, assinatura e exportação
 ├── CATALOG.md             ← catálogo de produtos, busca e atualização automática
@@ -39,7 +39,7 @@ docs/
    | Se a mudança envolve… | Leia também |
    | --- | --- |
    | tela, formulário, comportamento da página | [PAGES.md](./PAGES.md) |
-   | componente compartilhado ou primitiva de UI | [COMPONENTS.md](./COMPONENTS.md) |
+   | componente compartilhado, componente de layout ou primitiva de UI | [COMPONENTS.md](./COMPONENTS.md) |
    | campos, tipos, totais ou `localStorage` | [DATA-MODEL.md](./DATA-MODEL.md) |
    | PDF, PNG, A4, fotos, assinatura | [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md) |
    | busca, categorias ou catálogo Digital Sat | [CATALOG.md](./CATALOG.md) |
@@ -72,6 +72,7 @@ docs/
 | Hook de tela em `src/lib/hooks` | Um arquivo por hook (`catalog.ts`, `flash.ts`, …) e exporta `use<Nome>`. Não importa `src/app` nem `src/components`. |
 | Sem backend | Sem API routes, server actions ou autenticação real. Só `src/proxy.ts` roda no servidor, para exigir o cookie `jm_auth`. |
 | Dinheiro e quantidade são `string` | Converter apenas com `parseMoney`; nunca `parseFloat` solto. |
+| Validação/regra de negócio tem zod + teste | Schema em `src/lib/schemas/<assunto>.ts` e teste correspondente em `src/lib/__tests__/lib.test.ts`. |
 | Documento é `<canvas>` | O A4 é renderizado imperativamente em `src/lib/document`; não migrar para HTML/print. |
 | UTF-8 sem BOM | Preservar acentos exatamente (`orçamento`, `assinatura`). Ver [DEVELOPMENT.md](./DEVELOPMENT.md). |
 | Comentários e textos em português | Identificadores de código em inglês, como no restante do projeto. |
@@ -80,7 +81,8 @@ docs/
 
 - Atualizar **o(s) documento(s) afetado(s)** nesta pasta, na mesma alteração.
 - Rodar a validação mínima indicada em [DEVELOPMENT.md](./DEVELOPMENT.md)
-  (`bun run typecheck`, `bun run lint`, `bun test` conforme o escopo).
+  (`bun run typecheck`, `bun run lint`, `bun test`, `bun run test:e2e` conforme o
+  escopo).
 - Revisar o diff procurando corrupção de acentos e mudanças fora do escopo.
 
 ### Quando a documentação precisa mudar
@@ -91,6 +93,7 @@ docs/
 | Novo componente reutilizável, prop ou primitiva de UI | [COMPONENTS.md](./COMPONENTS.md) |
 | Novo hook de tela (`src/lib/hooks`) | [PAGES.md](./PAGES.md) |
 | Tipo, valor padrão, total ou chave de armazenamento | [DATA-MODEL.md](./DATA-MODEL.md) |
+| Nova validação ou regra de negócio | [DATA-MODEL.md](./DATA-MODEL.md) (regra) e [DEVELOPMENT.md](./DEVELOPMENT.md) (teste) |
 | Layout do documento, paginação, foto, assinatura ou exportação | [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md) |
 | Busca, formato do catálogo ou script de atualização | [CATALOG.md](./CATALOG.md) |
 | Comando, versão, teste, branch ou deploy | [DEVELOPMENT.md](./DEVELOPMENT.md) |

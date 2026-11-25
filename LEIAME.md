@@ -19,13 +19,15 @@ Outros comandos:
 | `bun run start` | serve a versão de produção |
 | `bun run typecheck` | confere os tipos (`tsc --noEmit`) |
 | `bun run lint` | roda o ESLint |
-| `bun test` | roda os testes |
+| `bun test` | roda os testes de regra e unitários |
+| `bun run test:e2e` | roda os testes de interface (Playwright; requer `bunx playwright install chromium` uma vez) |
 
 ## Estrutura
 
 ```
 docs/                       documentação técnica obrigatória (arquitetura, páginas,
                             componentes, dados, motor do documento, catálogo)
+e2e/                        testes de interface com Playwright
 public/                     arquivos servidos como estão
   catalog.json              produtos da Digital Sat usados na busca (2.788 itens)
   header.png                cabeçalho J&M System usado nos documentos

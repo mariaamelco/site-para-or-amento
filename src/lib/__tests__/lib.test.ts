@@ -9,8 +9,16 @@ import {
 import { documentName } from "@/lib/document/download";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
 import { brDate, fmt, maskCNPJ, parseMoney, productId } from "@/lib/format";
+import {
+  addedProductSlugs,
+  budgetFormSchema,
+  canAddBudgetProduct,
+  validateBudgetItems,
+} from "@/lib/schemas/budget";
+import { receiptFormSchema } from "@/lib/schemas/receipt";
+import { formErrors, formIsValid } from "@/lib/form";
 import { budgetTotal, receiptTotal } from "@/lib/totals";
-import type { BudgetDoc } from "@/lib/types";
+import type { BudgetDoc, BudgetItem } from "@/lib/types";
 
 describe("parseMoney", () => {
   test("aceita os formatos digitados pelo usuário", () => {
@@ -187,5 +195,118 @@ describe("documentName", () => {
   test("sem cliente o nome continua válido", () => {
     const doc = { ...defaultBudget(), cliente: "  ", data: "2026-02-09" };
     expect(documentName("rec", doc, "pdf", 1, 1)).toBe("Recibo - 09-02-2026.pdf");
+  });
+});
+
+const budgetItem = (patch: Partial<BudgetItem> = {}): BudgetItem => ({
+  id: "i1",
+  desc: "Cabo",
+  qty: "1",
+  unit: "10",
+  ...patch,
+});
+
+describe("validação do orçamento (zod)", () => {
+  test("exige pelo menos um item", () => {
+    const result = validateBudgetItems([]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("Adicione pelo menos um item ao orçamento.");
+  });
+
+  test("quantidade precisa ser maior que zero", () => {
+    const result = validateBudgetItems([budgetItem({ qty: "0" })]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("Item 1: Quantidade deve ser maior que zero.");
+    expect(result.fieldId).toBe("qty-i1");
+  });
+
+  test("valor unitário precisa ser maior que zero", () => {
+    const result = validateBudgetItems([
+      budgetItem({ id: "i1", unit: "10" }),
+      budgetItem({ id: "i2", unit: "0" }),
+    ]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe(
+      "Item 2: Valor unitário deve ser maior que zero.",
+    );
+    expect(result.fieldId).toBe("unit-i2");
+  });
+
+  test("aceita valores positivos no formato brasileiro", () => {
+    expect(
+      validateBudgetItems([budgetItem({ qty: "1,5", unit: "R$ 89,90" })]),
+    ).toEqual({ ok: true });
+  });
+});
+
+describe("validade do documento", () => {
+  test("orçamento com cliente e item válido", () => {
+    const doc: BudgetDoc = {
+      ...defaultBudget(),
+      cliente: "Padaria Aurora",
+      items: [budgetItem({ qty: "2", unit: "R$ 89,90" })],
+    };
+
+    expect(formErrors(budgetFormSchema, doc)).toEqual({});
+    expect(formIsValid(formErrors(budgetFormSchema, doc))).toBe(true);
+  });
+
+  test("orçamento vazio fica inválido", () => {
+    const errors = formErrors(budgetFormSchema, defaultBudget());
+
+    expect(errors.cliente).toBe("Informe o nome do cliente.");
+    expect(errors.items).toBe("Adicione pelo menos um item ao orçamento.");
+    expect(formIsValid(errors)).toBe(false);
+  });
+
+  test("quantidade zerada invalida o documento", () => {
+    const doc: BudgetDoc = {
+      ...defaultBudget(),
+      cliente: "Padaria Aurora",
+      items: [budgetItem({ qty: "0" })],
+    };
+    const errors = formErrors(budgetFormSchema, doc);
+
+    expect(errors.items).toBe("Quantidade deve ser maior que zero.");
+    expect(formIsValid(errors)).toBe(false);
+  });
+
+  test("recibo sem itens fica inválido", () => {
+    const doc = { ...defaultReceipt(), cliente: "Padaria Aurora", items: [] };
+
+    expect(formErrors(receiptFormSchema, doc).items).toBe(
+      "Adicione pelo menos um item ao recibo.",
+    );
+  });
+
+  test("recibo com cliente e item fica válido", () => {
+    const doc = { ...defaultReceipt(), cliente: "Padaria Aurora" };
+
+    expect(formIsValid(formErrors(receiptFormSchema, doc))).toBe(true);
+  });
+});
+
+describe("regra de produto já adicionado", () => {
+  test("o mesmo slug não pode entrar duas vezes", () => {
+    const items = [budgetItem({ slug: "camera-1" })];
+    expect(canAddBudgetProduct("camera-1", items)).toBe(false);
+    expect(canAddBudgetProduct("camera-2", items)).toBe(true);
+    expect(canAddBudgetProduct("camera-1", [])).toBe(true);
+  });
+
+  test("itens personalizados não bloqueiam produtos do catálogo", () => {
+    expect(canAddBudgetProduct("camera-1", [budgetItem()])).toBe(true);
+  });
+
+  test("addedProductSlugs lista só os itens vindos do catálogo", () => {
+    const slugs = addedProductSlugs([
+      budgetItem({ slug: "camera-1" }),
+      budgetItem(),
+      budgetItem({ slug: "cabo-2" }),
+    ]);
+    expect([...slugs]).toEqual(["camera-1", "cabo-2"]);
   });
 });

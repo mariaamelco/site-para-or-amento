@@ -9,6 +9,8 @@ import { APP_VERSION } from "@/lib/version";
 
 interface Props {
   busy: boolean;
+  /** `false` quando o formulário do documento tem campos inválidos. */
+  isValid: boolean;
   notice: Notice;
   resetArmed: boolean;
   onDownloadPdf: () => void;
@@ -19,6 +21,7 @@ interface Props {
 
 export function ActionBar({
   busy,
+  isValid,
   notice,
   resetArmed,
   onDownloadPdf,
@@ -33,7 +36,7 @@ export function ActionBar({
           <Button
             type="button"
             className="h-10 bg-neutral-900 text-white hover:bg-neutral-800"
-            disabled={busy}
+            disabled={busy || !isValid}
             onClick={onDownloadPdf}
           >
             <FileText />
@@ -43,7 +46,7 @@ export function ActionBar({
             type="button"
             variant="outline"
             className="h-10"
-            disabled={busy}
+            disabled={busy || !isValid}
             onClick={onDownloadPng}
           >
             <FileImage />
@@ -53,7 +56,7 @@ export function ActionBar({
             type="button"
             variant="outline"
             className="h-10"
-            disabled={busy}
+            disabled={busy || !isValid}
             onClick={onCopy}
           >
             <Copy />
@@ -88,7 +91,9 @@ export function ActionBar({
             )}
           >
             {notice.text ||
-              "O PDF sai em A4, com as fotos dos produtos e a assinatura."}
+              (isValid
+                ? "O PDF sai em A4, com as fotos dos produtos e a assinatura."
+                : "Complete os dados do documento para exportar.")}
           </p>
           <span className="shrink-0 text-[11.5px] text-muted-foreground" title="Versão do sistema">
             v{APP_VERSION}

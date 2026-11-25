@@ -1,37 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DocumentPreview } from "./document-preview";
-import type { LoadedImage } from "@/lib/document/canvas";
-import type { BudgetDoc, Mode, ReceiptDoc } from "@/lib/types";
+import type { Mode } from "@/lib/types";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: Mode;
-  orc: BudgetDoc;
-  rec: ReceiptDoc;
-  header: LoadedImage | null;
-  signature: LoadedImage | null;
-  signerName: string;
+  /** Prévia exibida em tela cheia. */
+  children: ReactNode;
 }
 
 /**
  * No celular a prévia fica em tela cheia, aberta por um botão flutuante.
  * Assim dá para alternar entre o formulário e o PDF sem rolar a página.
  */
-export function MobilePreview({
-  open,
-  onOpenChange,
-  mode,
-  orc,
-  rec,
-  header,
-  signature,
-  signerName,
-}: Props) {
+export function MobilePreview({ open, onOpenChange, mode, children }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -82,17 +68,7 @@ export function MobilePreview({
               Voltar ao formulário
             </Button>
           </div>
-          <div className="min-h-0 flex-1 p-3">
-            <DocumentPreview
-              mode={mode}
-              orc={orc}
-              rec={rec}
-              header={header}
-              signature={signature}
-              signerName={signerName}
-              fill
-            />
-          </div>
+          <div className="min-h-0 flex-1 p-3">{children}</div>
         </div>
       ) : null}
     </>

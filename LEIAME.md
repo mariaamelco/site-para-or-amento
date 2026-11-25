@@ -19,11 +19,15 @@ Outros comandos:
 | `bun run start` | serve a versão de produção |
 | `bun run typecheck` | confere os tipos (`tsc --noEmit`) |
 | `bun run lint` | roda o ESLint |
-| `bun test` | roda os testes |
+| `bun test` | roda os testes de regra e unitários |
+| `bun run test:e2e` | roda os testes de interface (Playwright; requer `bunx playwright install chromium` uma vez) |
 
 ## Estrutura
 
 ```
+docs/                       documentação técnica obrigatória (arquitetura, páginas,
+                            componentes, dados, motor do documento, catálogo)
+e2e/                        testes de interface com Playwright
 public/                     arquivos servidos como estão
   catalog.json              produtos da Digital Sat usados na busca (2.788 itens)
   header.png                cabeçalho J&M System usado nos documentos
@@ -31,7 +35,7 @@ public/                     arquivos servidos como estão
 scripts/atualizar-catalogo.mjs   atualiza o catálogo a partir do sitemap da loja
 src/app/                    App Router: layout, estilos globais e páginas
   (home)/                   página inicial (rota /) e as seções dela
-                            (login, busca, itens, prévia, ações)
+                            (orçamento, recibo, prévia, ações)
 src/components/             componentes reutilizáveis (money-input, product-thumb…)
   ui/                       componentes do shadcn/ui
 src/lib/                    regras do app
@@ -50,7 +54,16 @@ src/lib/                    regras do app
 next.config.ts              repasse de /foto/ID para a loja e cache dos assets
 ```
 
-Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
+Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Um componente usado por um único arquivo é declarado no topo desse arquivo, não vira arquivo novo. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
+
+## Documentação técnica
+
+A pasta `docs/` guarda a documentação **obrigatória** do projeto: arquitetura,
+páginas, componentes, dados, motor do documento, catálogo e desenvolvimento.
+Comece por [`docs/README.md`](docs/README.md).
+
+Qualquer mudança de comportamento, estrutura ou decisão técnica deve atualizar o
+documento correspondente **na mesma alteração**.
 
 ## Publicar na Vercel
 

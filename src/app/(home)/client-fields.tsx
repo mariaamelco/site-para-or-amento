@@ -1,11 +1,19 @@
 "use client";
 
 import { UserRound } from "lucide-react";
+import {
+  Form,
+  useFormContext,
+} from "@/components/layout/Form/form.layout";
+import { InputLayout } from "@/components/layout/Form/input/input.layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { maskCNPJ } from "@/lib/format";
+import {
+  clientFieldsSchema,
+  type ClientFieldsValue,
+} from "@/lib/schemas/client";
 
 interface Props {
   idPrefix: "o" | "r";
@@ -13,12 +21,47 @@ interface Props {
   data: string;
   cnpjOn: boolean;
   cnpj: string;
-  onChange: (patch: {
-    cliente?: string;
-    data?: string;
-    cnpjOn?: boolean;
-    cnpj?: string;
-  }) => void;
+  onChange: (patch: Partial<ClientFieldsValue>) => void;
+}
+
+/** Campos ligados ao contexto de formulário criado por `ClientFields`. */
+function ClientFieldsBody({ idPrefix }: { idPrefix: "o" | "r" }) {
+  const form = useFormContext<ClientFieldsValue>();
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+        <InputLayout<ClientFieldsValue>
+          name="cliente"
+          label="Nome do cliente"
+          autoComplete="off"
+          placeholder="Nome ou empresa"
+        />
+        <InputLayout<ClientFieldsValue> name="data" label="Data" type="date" />
+      </div>
+      <Label htmlFor={`${idPrefix}-cnpj`} className="text-[13px] font-normal">
+        <Checkbox
+          id={`${idPrefix}-cnpj`}
+          checked={form.values.cnpjOn}
+          onCheckedChange={(checked) =>
+            form.setField("cnpjOn", checked === true)
+          }
+        />
+        Incluir CNPJ no documento
+      </Label>
+      {form.values.cnpjOn ? (
+        <InputLayout<ClientFieldsValue>
+          name="cnpj"
+          id={`${idPrefix}-cnpj-val`}
+          label="CNPJ do cliente"
+          className="sm:max-w-[260px]"
+          inputMode="numeric"
+          placeholder="00.000.000/0000-00"
+          format={maskCNPJ}
+        />
+      ) : null}
+    </>
+  );
 }
 
 export function ClientFields({
@@ -38,65 +81,14 @@ export function ClientFields({
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
-          <div className="grid gap-1.5">
-            <Label
-              htmlFor={`${idPrefix}-cliente`}
-              className="text-[12.5px] text-muted-foreground"
-            >
-              Nome do cliente
-            </Label>
-            <Input
-              id={`${idPrefix}-cliente`}
-              className="h-10"
-              autoComplete="off"
-              placeholder="Nome ou empresa"
-              value={cliente}
-              onChange={(event) => onChange({ cliente: event.target.value })}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label
-              htmlFor={`${idPrefix}-data`}
-              className="text-[12.5px] text-muted-foreground"
-            >
-              Data
-            </Label>
-            <Input
-              id={`${idPrefix}-data`}
-              type="date"
-              className="h-10"
-              value={data}
-              onChange={(event) => onChange({ data: event.target.value })}
-            />
-          </div>
-        </div>
-        <Label htmlFor={`${idPrefix}-cnpj`} className="text-[13px] font-normal">
-          <Checkbox
-            id={`${idPrefix}-cnpj`}
-            checked={cnpjOn}
-            onCheckedChange={(checked) => onChange({ cnpjOn: checked === true })}
-          />
-          Incluir CNPJ no documento
-        </Label>
-        {cnpjOn ? (
-          <div className="grid gap-1.5 sm:max-w-[260px]">
-            <Label
-              htmlFor={`${idPrefix}-cnpj-val`}
-              className="text-[12.5px] text-muted-foreground"
-            >
-              CNPJ do cliente
-            </Label>
-            <Input
-              id={`${idPrefix}-cnpj-val`}
-              className="h-10"
-              inputMode="numeric"
-              placeholder="00.000.000/0000-00"
-              value={cnpj}
-              onChange={(event) => onChange({ cnpj: maskCNPJ(event.target.value) })}
-            />
-          </div>
-        ) : null}
+        <Form
+          schema={clientFieldsSchema}
+          idPrefix={idPrefix}
+          values={{ cliente, data, cnpjOn, cnpj }}
+          onValuesChange={onChange}
+        >
+          <ClientFieldsBody idPrefix={idPrefix} />
+        </Form>
       </CardContent>
     </Card>
   );

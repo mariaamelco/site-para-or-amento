@@ -75,20 +75,18 @@ Formatadores:
 
 ### Subtotais da lista (exibição)
 
-`itemSubtotal` está em `src/app/(home)/budget-items.tsx` e mostra `qty × unit`.
+`itemSubtotal` está em `src/app/(home)/budget-form.tsx` e mostra `qty × unit`.
 Diferença conhecida: para **quantidade inválida**, o subtotal exibido é `0`,
 enquanto `budgetTotal` trata a quantidade como `1`. Ao mexer nessa regra, decida e
 documente o comportamento dos dois lugares juntos.
 
 ## Chaves do `localStorage`
 
-Definidas no `AppShell` (e em `src/lib/auth.ts` para a sessão). **Não renomeie**
-essas chaves sem migração: elas são as mesmas da versão antiga do site e garantir
-que quem já usava não perca dados.
+Definidas no `AppShell`. **Não renomeie** essas chaves sem migração: elas são as
+mesmas da versão antiga do site e garantir que quem já usava não perca dados.
 
 | Chave | Conteúdo | Gravada por |
 | --- | --- | --- |
-| `jm_auth` | `"1"` (sessão e/ou aparelho) | `lib/auth.ts` |
 | `jm_mode` | `"orc"` ou `"rec"` | `AppShell` |
 | `jm_orc` | `BudgetDoc` em JSON | `AppShell` |
 | `jm_rec` | `ReceiptDoc` em JSON | `AppShell` |
@@ -108,7 +106,8 @@ que quem já usava não perca dados.
 
 ### Regras de gravação
 
-- Cada campo é gravado por um `useEffect` quando muda (`saveJSON`).
+- Cada campo é gravado por `usePersistedState` (`src/lib/hooks/persisted-state.ts`),
+  que chama `saveJSON` num `useEffect` sempre que o valor muda.
 - Falha de armazenamento (cota cheia, modo privado) é silenciosa: o app continua
   funcionando, mas sem salvar.
 - Assinatura grande é reduzida antes de gravar (`shrinkSignature`, ver
@@ -119,7 +118,7 @@ que quem já usava não perca dados.
 1. Adicionar ao tipo em `src/lib/types.ts`.
 2. Adicionar o valor padrão em `src/lib/documents.ts`.
 3. Usar no `AppShell`/seção.
-4. O efeito de persistência e a mesclagem com padrões já cobrem o resto.
+4. A mesclagem com padrões (`restore` em `usePersistedState`) já cobre o resto.
 5. Atualizar este documento.
 
 ## Autenticação
@@ -128,10 +127,12 @@ que quem já usava não perca dados.
 
 - Credenciais fixas no código (usuário e senha de uso interno). Para trocar, edite
   o arquivo — não replique a senha em documentação nem em outros arquivos.
-- `persistAuth(keep)` grava `jm_auth = "1"` em `sessionStorage`; com “manter
-  conectado”, também em `localStorage`.
-- `isAuthenticated()` aceita qualquer um dos dois.
-- `clearAuth()` remove os dois.
+- `persistAuth(keep)` grava o cookie `jm_auth=1` em `path=/` com `SameSite=Lax`.
+  Sem “manter conectado” é um cookie de sessão; com a opção marcada, vale por
+  30 dias. Em HTTPS o cookie recebe `Secure`.
+- `clearAuth()` apaga o cookie (`max-age=0`).
+- O cookie é a única fonte de verdade: `src/proxy.ts` o lê no servidor para decidir
+  entre `/` e `/auth`, e não há mais `sessionStorage`/`localStorage` para a sessão.
 - **Não é segurança real**: o código vai para o navegador. Serve apenas para evitar
   acesso casual. Nunca reutilize essa senha em outros serviços.
 

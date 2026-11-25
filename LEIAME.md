@@ -33,7 +33,7 @@ public/                     arquivos servidos como estão
 scripts/atualizar-catalogo.mjs   atualiza o catálogo a partir do sitemap da loja
 src/app/                    App Router: layout, estilos globais e páginas
   (home)/                   página inicial (rota /) e as seções dela
-                            (login, busca, itens, prévia, ações)
+                            (orçamento, recibo, prévia, ações)
 src/components/             componentes reutilizáveis (money-input, product-thumb…)
   ui/                       componentes do shadcn/ui
 src/lib/                    regras do app
@@ -52,7 +52,7 @@ src/lib/                    regras do app
 next.config.ts              repasse de /foto/ID para a loja e cache dos assets
 ```
 
-Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
+Componentes de interface ficam em `src/components/ui` (gerados pelo shadcn — `bunx shadcn@latest add <nome>`). As seções de cada página ficam dentro da pasta da própria página em `src/app` — por exemplo, a página inicial em `src/app/(home)/`. Um componente usado por um único arquivo é declarado no topo desse arquivo, não vira arquivo novo. Em `src/components` só ficam componentes reutilizáveis, nunca partes de página.
 
 ## Documentação técnica
 

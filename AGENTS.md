@@ -24,19 +24,29 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - **Páginas ficam em `src/app`**, cada uma na sua pasta/route group. Ex.: a página
   inicial é `src/app/(home)/page.tsx`.
-- **Todas as partes de uma página ficam dentro da pasta dela**, em arquivos
-  separados (`src/app/(home)/budget-form.tsx`, `budget-items.tsx`,
-  `product-search.tsx`, …). Página nova = pasta nova em `src/app/<rota>/`.
+- **Todas as partes de uma página ficam dentro da pasta dela.** Página nova = pasta
+  nova em `src/app/<rota>/`.
+- **Só crie arquivo para o que é reaproveitado ou é uma seção da página.** Um
+  componente usado por um único arquivo (ex.: `ProductSearch` dentro de
+  `budget-form.tsx`) deve ser declarado no topo desse arquivo, fora da função do
+  componente chamador — nunca como arquivo próprio.
+- **O chrome da rota fica no layout dela** (`src/app/(home)/layout.tsx`): o
+  cabeçalho e o fundo da página não pertencem ao shell cliente. O shell cuida só
+  do documento, das abas de modo e da exportação.
 - **`src/components` só recebe componentes reutilizáveis**, sem conhecimento de
   página. `src/components/ui` é para as primitivas do shadcn/ui e
   `src/components` para os componentes do app (`money-input`, `product-thumb`,
   `auto-grow-textarea`, `brand-logo`).
 - **Nunca** crie pastas como `src/components/app` para guardar telas ou seções de
   página: isso é parte da página e pertence a `src/app`.
-- Imports entre arquivos da mesma página usam caminho relativo (`./budget-items`);
+- **Hooks de tela ficam em `src/lib/hooks/`**, um arquivo por hook com nome simples
+  (`catalog.ts`, `flash.ts`, `persisted-state.ts`, …) exportando `use<Nome>`. Eles
+  podem usar React, mas só importam outros módulos de `src/lib`.
+- Imports entre arquivos da mesma página usam caminho relativo (`./client-fields`);
   o resto usa o alias `@/`.
-- Se uma página crescer, divida em mais arquivos **dentro da pasta dela**, não em
-  `components`.
+- Se a página crescer, prefira declarar o componente auxiliar no arquivo do
+  chamador; só divida em outro arquivo **dentro da pasta da página** quando o
+  componente for usado por mais de um arquivo (nunca em `components`).
 
 ## Codificação dos arquivos
 

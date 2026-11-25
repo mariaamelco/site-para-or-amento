@@ -65,9 +65,12 @@ docs/
 | Regra | Detalhe |
 | --- | --- |
 | Página mora em `src/app` | Cada rota é uma pasta; todas as seções da página ficam dentro dela. |
+| Um componente, um arquivo só quando reaproveitado | Componente usado por um único arquivo é declarado no topo desse arquivo, fora do componente chamador. |
+| Cabeçalho no layout da rota | O cabeçalho fica em `src/app/(home)/layout.tsx` (`AppHeader`); as abas de modo são seção da página. |
 | `src/components` é só reutilizável | Nunca criar `src/components/app` nem guardar seção de página ali. |
 | Regra de negócio em `src/lib` | Componentes não calculam totais, não formatam dinheiro e não desenham documento. |
-| Sem backend | Sem API routes, server actions ou autenticação real. Tudo roda no navegador. |
+| Hook de tela em `src/lib/hooks` | Um arquivo por hook (`catalog.ts`, `flash.ts`, …) e exporta `use<Nome>`. Não importa `src/app` nem `src/components`. |
+| Sem backend | Sem API routes, server actions ou autenticação real. Só `src/proxy.ts` roda no servidor, para exigir o cookie `jm_auth`. |
 | Dinheiro e quantidade são `string` | Converter apenas com `parseMoney`; nunca `parseFloat` solto. |
 | Documento é `<canvas>` | O A4 é renderizado imperativamente em `src/lib/document`; não migrar para HTML/print. |
 | UTF-8 sem BOM | Preservar acentos exatamente (`orçamento`, `assinatura`). Ver [DEVELOPMENT.md](./DEVELOPMENT.md). |
@@ -86,6 +89,7 @@ docs/
 | --- | --- |
 | Nova página, seção, campo ou fluxo de tela | [PAGES.md](./PAGES.md) |
 | Novo componente reutilizável, prop ou primitiva de UI | [COMPONENTS.md](./COMPONENTS.md) |
+| Novo hook de tela (`src/lib/hooks`) | [PAGES.md](./PAGES.md) |
 | Tipo, valor padrão, total ou chave de armazenamento | [DATA-MODEL.md](./DATA-MODEL.md) |
 | Layout do documento, paginação, foto, assinatura ou exportação | [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md) |
 | Busca, formato do catálogo ou script de atualização | [CATALOG.md](./CATALOG.md) |

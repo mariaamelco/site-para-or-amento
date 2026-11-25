@@ -154,11 +154,12 @@ aparece na tela de login e na barra de ações.
 
 | Sintoma | Verifique |
 | --- | --- |
-| Página em branco no início | `app-client` deve carregar `app-shell` com `ssr: false`. |
+| Página em branco no início | `(home)/page.tsx` deve carregar `app-shell` com `ssr: false` (`dynamic`). |
 | Acentos quebrados no código | Encoding do arquivo; regrave como UTF-8 sem BOM. |
 | Fontes diferentes no PDF | Fontes em `public/fonts` e `ensureFonts` antes de renderizar. |
 | Foto some no PDF | `/foto/:id` em `next.config.ts`, id no slug e cache de fotos. |
-| Catálogo não carrega | `/catalog.json` em `public` e `fetch` após o login. |
+| Catálogo não carrega | `/catalog.json` em `public` e `fetch` ao carregar o app. |
+| Login em loop | Cookie `jm_auth` bloqueado no navegador ou matcher do proxy sem `/auth`. |
 | Dados não persistem | Modo privado/cota cheia: o app funciona, mas não salva. |
 | Build falha por tipos | `bun run typecheck` antes de `bun run build`. |
 | Release falha | Tag `vX.Y.Z` diferente de `"version"` no `package.json`. |

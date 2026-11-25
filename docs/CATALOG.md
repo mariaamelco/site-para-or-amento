@@ -30,7 +30,8 @@
   - filtra pelo `cat` quando há categoria;
   - devolve os resultados limitados e o total antes do limite.
 
-O `AppShell` busca `/catalog.json` só depois do login e trata `loading` e `failed`.
+O `AppShell` busca `/catalog.json` ao carregar o app (a rota já é protegida pelo
+proxy) e trata `loading` e `failed`.
 Na interface, `ProductSearch` mostra a mensagem correspondente e sugere “Item
 personalizado” quando o catálogo falha.
 
@@ -61,7 +62,8 @@ Testes: `src/lib/unit/search.test.ts` (vitest).
 
 ## Componente de busca
 
-`src/app/(home)/product-search.tsx` (detalhes em [PAGES.md](./PAGES.md)):
+`src/app/(home)/budget-form.tsx` — componente `ProductSearch` (detalhes em
+[PAGES.md](./PAGES.md)):
 
 - Categoria vazia = todas; valor interno `__all__`.
 - Lista suspensa em portal, com `↑`/`↓`/`Enter`/`Escape`.

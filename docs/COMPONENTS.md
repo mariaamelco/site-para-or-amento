@@ -115,7 +115,7 @@ bunx shadcn@latest add <nome>
 - Props tipadas com `interface Props` logo acima do componente.
 - Callbacks nomeados como `onAlgo`; handlers internos como `handleAlgo`.
 - Combinar classes com `cn()`; não montar string de classe condicional manualmente
-  (exceção histórica: `receipt-items.tsx` e `app-shell.tsx`).
+  (exceção histórica: `receipt-form.tsx` e `app-shell.tsx`).
 - Ícones do `lucide-react` sem tamanho explícito herdam `size-4` do botão; fora de
   botões, use `className="size-4"` (ou similar).
 - Textos visíveis, `aria-label` e mensagens em português.

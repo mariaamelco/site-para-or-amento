@@ -1,15 +1,21 @@
 # Páginas e seções da tela
 
 Todas as telas atuais ficam em **uma única rota**: `/`. A página é composta por
-seções que moram na própria pasta da rota, em `src/app/(home)/`. A regra de
-organização está em [ARCHITECTURE.md](./ARCHITECTURE.md#onde-colocar-código-novo).
+seções que moram na própria pasta da rota, em `src/app/(home)/`. O cabeçalho
+(marca + sair) vive no layout da rota, `src/app/(home)/layout.tsx`, porque não
+depende do documento aberto; as abas de modo são uma seção da própria página. A
+regra de organização está em
+[ARCHITECTURE.md](./ARCHITECTURE.md#onde-colocar-código-novo).
 
 ## Rotas
 
 | Rota | Arquivo | Observação |
 | --- | --- | --- |
-| `/` | `src/app/(home)/page.tsx` | Renderiza `AppClient`, que carrega `AppShell` sem SSR. |
+| `/` | `src/app/(home)/page.tsx` | Carrega `AppShell` com `ssr: false` (é client component). Protegida pelo proxy. |
+| — | `src/app/(home)/layout.tsx` | Layout da rota protegida: fundo da página e cabeçalho (`AppHeader`). |
+| `/auth` | `src/app/auth/page.tsx` | Renderiza `LoginScreen`; grava o cookie `jm_auth` e volta para `/`. |
 | — | `src/app/layout.tsx` | Layout raiz: metadados, `lang="pt-BR"`, fontes e `globals.css`. |
+| — | `src/proxy.ts` | Sem o cookie `jm_auth`, redireciona para `/auth`. |
 
 `(home)` é um **route group**: não aparece na URL. Serve para agrupar a rota e
 todas as suas seções.
@@ -18,100 +24,116 @@ todas as suas seções.
 
 ```mermaid
 flowchart TD
-  Root["/ — page.tsx"] --> Client[app-client]
-  Client --> Shell[app-shell]
-  Shell -->|não autenticado| Login[login-screen]
-  Shell -->|autenticado| Header["cabeçalho<br/>BrandLogo + abas + Sair"]
-  Header --> OrcMode["modo orçamento"]
-  Header --> RecMode["modo recibo"]
-  OrcMode --> BF[budget-form]
+  Proxy["proxy.ts"] -->|sem jm_auth| Auth["/auth — page.tsx"]
+  Auth --> Login[login-screen]
+  Login -->|credenciais válidas| Cookie["cookie jm_auth=1"]
+  Cookie --> Layout
+  Proxy -->|com jm_auth| Layout["(home)/layout.tsx"]
+  Layout --> Header["AppHeader<br/>BrandLogo + Sair"]
+  Layout --> Root["/ — page.tsx"]
+  Root --> Shell[app-shell]
+  Shell --> Hooks["hooks<br/>lib/hooks/*.ts"]
+  Shell --> Tabs["abas de modo<br/>orçamento / recibo"]
+  Tabs --> OrcMode["modo orçamento"]
+  Tabs --> RecMode["modo recibo"]
+  OrcMode --> BF["budget-form<br/>+ ProductSearch<br/>+ BudgetItems<br/>+ AddProductSplitButton"]
   BF --> CF1[client-fields]
-  BF --> PS[product-search]
-  BF --> BI[budget-items]
-  BI --> APS[add-product-split-button]
-  RecMode --> RF[receipt-form]
+  RecMode --> RF["receipt-form<br/>+ ReceiptItems<br/>+ SignaturePanel"]
   RF --> CF2[client-fields]
-  RF --> RI[receipt-items]
-  RF --> SP[signature-panel]
   Shell --> AB[action-bar]
-  Shell --> DP[document-preview]
-  Shell --> MP[mobile-preview]
+  Shell --> MP["mobile-preview<br/>(recebe a prévia via children)"]
+  Shell --> DP["DocumentPreview<br/>(declarado no próprio app-shell)"]
   Shell --> ID[images-dialog]
 ```
 
 ## Seções
 
+A pasta `(home)` tem poucos arquivos de propósito: cada componente auxiliar é
+declarado **no topo do arquivo que o usa**, fora da função do componente
+chamador, e não vira arquivo próprio. O que sobra são as seções da página, as
+rotas (`page.tsx` / `layout.tsx`) e os componentes reaproveitados pelos dois modos.
+
 | Seção | Arquivo | Responsabilidade | Estado próprio |
 | --- | --- | --- | --- |
-| `Home` | `page.tsx` | Ponto de entrada da rota. | nenhum |
-| `AppClient` | `app-client.tsx` | Carrega o app só no navegador (`ssr: false`). | nenhum |
-| `AppShell` | `app-shell.tsx` | Estado central, persistência, catálogo, validação, exportação e layout. | todo o estado do app |
-| `LoginScreen` | `login-screen.tsx` | Formulário de entrada. | usuário, senha, “manter conectado”, erro |
-| `BudgetForm` | `budget-form.tsx` | Compõe cliente, busca, itens e total do orçamento. | nenhum (ref da busca) |
+| `Home` | `(home)/page.tsx` | Ponto de entrada da rota protegida; carrega `AppShell` no navegador (`ssr: false`). | nenhum |
+| `AuthPage` | `auth/page.tsx` | Ponto de entrada da rota `/auth`. | nenhum |
+| `HomeLayout` | `(home)/layout.tsx` | Fundo da página e cabeçalho da rota protegida; contém `AppHeader`. | nenhum |
+| `AppShell` | `app-shell.tsx` | Abas de modo, validação, exportação, composição dos hooks; contém `DocumentPreview`. | aviso, ocupado, limpeza armada, imagens |
+| `LoginScreen` | `auth/login-screen.tsx` | Formulário de entrada; grava o cookie e navega para `/`. | usuário, senha, “manter conectado”, erro |
+| `BudgetForm` | `budget-form.tsx` | Compõe cliente, busca, itens e total do orçamento; edita os itens. Contém `ProductSearch`, `BudgetItems` e `AddProductSplitButton`. | nenhum (ref da busca) |
 | `ClientFields` | `client-fields.tsx` | Nome, data e CNPJ do cliente (usado nos dois modos). | nenhum |
-| `ProductSearch` | `product-search.tsx` | Busca no catálogo, filtro por categoria e adição rápida. | termo, categoria, item ativo, aberto |
-| `BudgetItems` | `budget-items.tsx` | Lista de itens, quantidade, valor, subtotal e configurações. | painel de configurações |
-| `AddProductSplitButton` | `add-product-split-button.tsx` | Botão dividido do celular (produto / item personalizado). | menu aberto |
+| `ReceiptForm` | `receipt-form.tsx` | Compõe cliente, itens, assinatura e total do recibo; edita itens e assinatura. Contém `ReceiptItems` e `SignaturePanel`. | nenhum |
 | `ActionBar` | `action-bar.tsx` | Botões de PDF, PNG, copiar, limpar, aviso e versão. | nenhum |
-| `DocumentPreview` | `document-preview.tsx` | Desenha os canvases A4 da prévia. | contador de redesenho, rótulo de páginas |
-| `MobilePreview` | `mobile-preview.tsx` | Prévia em tela cheia no celular. | nenhum (controlado) |
-| `ReceiptForm` | `receipt-form.tsx` | Compõe cliente, itens, assinatura e total do recibo. | nenhum |
-| `ReceiptItems` | `receipt-items.tsx` | Lista de descrições e valores do recibo. | nenhum |
-| `SignaturePanel` | `signature-panel.tsx` | Envio/arraste da assinatura e ajustes. | arrastando arquivo |
+| `MobilePreview` | `mobile-preview.tsx` | Prévia em tela cheia no celular; recebe a prévia por `children`. | nenhum (controlado) |
 | `ImagesDialog` | `images-dialog.tsx` | Alternativa para salvar a imagem exportada. | nenhum (controlado) |
+
+
+## Abas de modo
+
+- São uma **seção da página**, dentro de `<main>` e acima da grade; não ficam mais
+  no `<header>`.
+- Controladas por `mode` (`jm_mode`) e `handleModeChange`, ambos no `AppShell`.
+- “Fazer orçamento” renderiza `BudgetForm`; “Fazer recibo”, `ReceiptForm`.
+- No celular ocupam a largura toda; a partir de `sm` ficam no tamanho do conteúdo.
 
 ## `AppShell` em detalhe
 
-É o cérebro da tela. Qualquer nova funcionalidade que envolva estado do documento
-passa por aqui.
+`AppShell` guarda o estado que precisa cruzar modos (documentos, preferências,
+aviso, exportação, limpeza e diálogo de imagens) e desenha as abas de modo, mas
+**não** desenha o cabeçalho: ele vem do layout da rota. O resto vem de hooks e as
+mutações de cada documento ficam no próprio formulário.
 
 ### Estado
 
-| Estado | Tipo | Persistência | Para que serve |
+| Estado | Origem | Persistência | Para que serve |
 | --- | --- | --- | --- |
-| `authed` | `boolean` | `jm_auth` (via `lib/auth`) | Mostra login ou app. |
-| `mode` | `"orc" \| "rec"` | `jm_mode` | Aba ativa. |
-| `orc` | `BudgetDoc` | `jm_orc` | Documento de orçamento. |
-| `rec` | `ReceiptDoc` | `jm_rec` | Documento de recibo. |
-| `priceMemo` | `PriceMemo` | `jm_prices` | Último valor usado por produto (slug). |
-| `sigRaw` | `string \| null` | `jm_sig_raw` | Imagem original da assinatura (data URL). |
-| `sigClean` | `boolean` | `jm_sig_clean` | Remover fundo do papel. |
-| `sigName` | `string` | `jm_sig_name` | Nome impresso sob a linha. |
-| `signature` | `LoadedImage \| null` | — | Assinatura processada para o canvas. |
-| `header` | `LoadedImage \| null` | — | Cabeçalho do documento carregado. |
-| `products` | `CatalogProduct[]` | — | Catálogo em memória. |
-| `catalogLoading` / `catalogFailed` | `boolean` | — | Estados da busca. |
-| `notice` / `sigNotice` | `Notice` | — | Mensagens de status. |
-| `busy` | `boolean` | — | Exportação em andamento. |
-| `armed` | `boolean` | — | “Novo documento” pedindo confirmação. |
-| `flashId` | `string \| null` | — | Item recém-adicionado (animação). |
-| `images` | `HTMLCanvasElement[] \| null` | — | Páginas para o diálogo de imagem. |
-| `desktop` | `boolean` | — | Breakpoint de 1024 px. |
-| `previewOpen` | `boolean` | — | Prévia em tela cheia no celular. |
+| `mode` | `usePersistedState` | `jm_mode` | Aba ativa. |
+| `orc` | `usePersistedState` | `jm_orc` | Documento de orçamento. |
+| `rec` | `usePersistedState` | `jm_rec` | Documento de recibo. |
+| `priceMemo` | `usePersistedState` | `jm_prices` | Último valor usado por produto (slug). |
+| `sigRaw` | `usePersistedState` | `jm_sig_raw` | Imagem original da assinatura (data URL). |
+| `sigClean` | `usePersistedState` | `jm_sig_clean` | Remover fundo do papel. |
+| `sigName` | `usePersistedState` | `jm_sig_name` | Nome impresso sob a linha. |
+| `notice` | `useState` | — | Aviso da barra de ações. |
+| `busy` | `useState` | — | Exportação em andamento. |
+| `armed` | `useState` | — | “Novo documento” pedindo confirmação. |
+| `images` | `useState` | — | Páginas para o diálogo de imagem. |
 
-### Efeitos
+Os documentos e as preferências são compartilhados entre modos, então continuam
+no `AppShell`; as mutações, porém, moram em quem as dispara (ver handlers).
 
-- Carrega o cabeçalho (`ensureHeaderImage`) uma vez.
-- Grava cada peça de estado no `localStorage` quando ela muda.
-- Busca `/catalog.json` somente depois do login.
-- Reprocessa a assinatura quando `sigRaw` ou `sigClean` mudam.
-- Observa `matchMedia("(min-width: 1024px)")` para alternar prévia lateral/tela cheia.
+### Hooks
+
+Cada hook é dono de uma tarefa única e vive em `src/lib/hooks/`.
+
+`AppShell` não declara nenhum `useEffect`; todo efeito vive no hook
+correspondente.
+
+| Hook | Arquivo | Retorno |
+| --- | --- | --- |
+| `usePersistedState` | `lib/hooks/persisted-state.ts` | `[valor, setValor]` espelhado no `localStorage`; `restore` define o padrão. |
+| `useCatalog` | `lib/hooks/catalog.ts` | `{ products, loading, failed }` a partir de `/catalog.json`. |
+| `useHeaderImage` | `lib/hooks/header-image.ts` | `LoadedImage \| null` do cabeçalho J&M. |
+| `useSignatureImage` | `lib/hooks/signature-image.ts` | `{ image, notice, setNotice }` da assinatura processada. |
+| `useDesktopPreview` | `lib/hooks/desktop-preview.ts` | `{ desktop, previewOpen, setPreviewOpen }` conforme `matchMedia`. |
+| `useFlash` | `lib/hooks/flash.ts` | `{ flashId, flash }` para destacar item novo por 1,5 s. |
 
 ### Handlers
 
-| Handler | Efeito |
-| --- | --- |
-| `patchOrc` / `patchRec` | Mescla campos no documento. |
-| `addProduct` | Cria item a partir do catálogo, com último preço (`priceMemo`). |
-| `addCustomItem` / `addLaborItem` | Cria item vazio ou “Mão de obra / serviço”. |
-| `updateItem` / `moveItem` / `removeItem` | Edita, reordena e remove itens do orçamento; atualiza `priceMemo` ao mudar o valor unitário. |
-| `updateReceiptItem` / `removeReceiptItem` / `addReceiptItem` | Equivalentes no recibo. |
-| `handleSignatureFile` / `resetSignature` | Valida, reduz e processa (ou remove) a assinatura. |
-| `validate` | Exige cliente e ao menos um item (foco no campo `o-cliente` ou `r-cliente`). |
-| `renderExportPages` | Prepara fontes/fotos e renderiza as páginas na escala de exportação. |
-| `handleDownloadPdf` / `handleDownloadPng` / `handleCopyImage` | Exportações. |
-| `handleReset` | Limpeza em dois cliques (`armed` por 4 s). |
-| `handleModeChange` / `handleSignOut` | Troca de aba e saída. |
+| Handler | Arquivo | Efeito |
+| --- | --- | --- |
+| `patch` | `budget-form.tsx` / `receipt-form.tsx` | Mescla campos no documento. |
+| `addProduct` | `budget-form.tsx` | Cria item a partir do catálogo, com último preço (`priceMemo`). |
+| `addCustomItem` / `addLaborItem` | `budget-form.tsx` | Cria item vazio ou “Mão de obra / serviço”. |
+| `updateItem` / `moveItem` / `removeItem` | `budget-form.tsx` | Edita, reordena e remove itens do orçamento; atualiza `priceMemo` ao mudar o valor unitário. |
+| `updateItem` / `removeItem` / `addItem` | `receipt-form.tsx` | Equivalentes no recibo. |
+| `handleSignatureFile` / `resetSignature` | `receipt-form.tsx` | Valida, reduz e processa (ou remove) a assinatura. |
+| `validate` | `app-shell.tsx` | Exige cliente e ao menos um item (foco no campo `o-cliente` ou `r-cliente`). |
+| `renderExportPages` | `app-shell.tsx` | Prepara fontes/fotos e renderiza as páginas na escala de exportação. |
+| `handleDownloadPdf` / `handleDownloadPng` / `handleCopyImage` | `app-shell.tsx` | Exportações (dependem do modo e do documento validado). |
+| `handleReset` | `app-shell.tsx` | Limpeza em dois cliques (`armed` por 4 s). |
+| `handleModeChange` | `app-shell.tsx` | Troca a aba ativa e limpa aviso e limpeza armada. |
+| `handleSignOut` | `layout.tsx` (`AppHeader`) | Limpa o cookie (`clearAuth`) e navega para `/auth`. |
 
 ### Layout responsivo
 
@@ -122,10 +144,21 @@ passa por aqui.
 
 ## `LoginScreen`
 
+- Fica em `src/app/auth`, fora do route group `(home)`.
 - Valida com `checkCredentials` (ver [DATA-MODEL.md](./DATA-MODEL.md)).
-- `persistAuth(keep)` grava em `sessionStorage` e, se marcado, em `localStorage`.
+- `persistAuth(keep)` grava o cookie `jm_auth=1`: cookie de sessão por padrão e,
+  com “manter conectado”, com validade de 30 dias.
+- Ao entrar, faz navegação completa para `/`; o proxy já vê o cookie recém-gravado
+  e libera a rota.
 - Mostra a versão (`APP_VERSION`).
 - Não é segurança real: o login apenas evita acesso casual.
+
+## `proxy.ts`
+
+- Roda antes das rotas que não são `/auth` nem arquivos estáticos.
+- Sem `jm_auth=1`, redireciona para `/auth`.
+- É uma checagem otimista de navegação, não uma sessão de servidor: credenciais,
+  dados e documentos continuam no navegador.
 
 ## `BudgetForm`
 
@@ -148,7 +181,7 @@ Regras do total:
 - Reutilizado pelos dois modos; não adicionar regra específica de um documento aqui
   sem verificar o outro.
 
-## `ProductSearch`
+## `ProductSearch` (dentro de `budget-form.tsx`)
 
 - Fonte: `products` carregado pelo `AppShell`.
 - Categoria: `catalogCategories`, com contagem por grupo.
@@ -160,7 +193,7 @@ Regras do total:
 - Link “ver na loja ↗” abre a página do produto na Digital Sat.
 - Estado de carregamento/falha altera a mensagem de ajuda.
 
-## `BudgetItems`
+## `BudgetItems` (dentro de `budget-form.tsx`)
 
 - Cabeçalho fixo (`sticky`) com contagem e ações de adicionar.
 - Desktop: três botões (`Adicionar produto`, `Item personalizado`,
@@ -175,7 +208,7 @@ Regras do total:
   - observações (`obs`).
 - A lista tem altura máxima e rolagem interna.
 
-## `AddProductSplitButton`
+## `AddProductSplitButton` (dentro de `budget-form.tsx`)
 
 - Só aparece no celular (`sm:hidden` no cabeçalho dos itens).
 - Parte principal foca a busca; a seta abre o menu “Item personalizado”.
@@ -186,13 +219,13 @@ Regras do total:
 Compõe `ClientFields` (`idPrefix="r"`), `ReceiptItems`, `SignaturePanel` e o
 cartão “Total recebido” (`receiptTotal`).
 
-## `ReceiptItems`
+## `ReceiptItems` (dentro de `receipt-form.tsx`)
 
 - Cada linha: descrição (`AutoGrowTextarea`), valor (`MoneyInput`) e remover.
 - Dois botões de adicionar: no título e abaixo da lista.
 - Recibo novo já nasce com um item vazio (`defaultReceipt`).
 
-## `SignaturePanel`
+## `SignaturePanel` (dentro de `receipt-form.tsx`)
 
 - Aceita clique ou arraste de imagem (`PNG`/`JPG`).
 - Mostra a prévia da imagem original (`sigRaw`).
@@ -209,7 +242,7 @@ cartão “Total recebido” (`receiptTotal`).
 - Área de status (`role="status"`, `aria-live="polite"`) mostra avisos.
 - Exibe `v{APP_VERSION}`.
 
-## `DocumentPreview`
+## `DocumentPreview` (dentro de `app-shell.tsx`)
 
 - Renderiza os canvases fora do React e os anexa ao container
   (`host.replaceChildren`).
@@ -225,7 +258,8 @@ cartão “Total recebido” (`receiptTotal`).
 - Botão flutuante “Ver prévia do PDF”.
 - Painel fixo em tela cheia, com `Escape` para fechar.
 - Bloqueia o scroll do `body` enquanto aberto.
-- Usa `DocumentPreview` com `fill`.
+- Não conhece o documento: recebe a prévia pronta por `children` (o `AppShell`
+  passa `<DocumentPreview fill />`).
 
 ## `ImagesDialog`
 
@@ -236,11 +270,15 @@ cartão “Total recebido” (`receiptTotal`).
 ## Como adicionar uma página nova
 
 1. Criar `src/app/<rota>/page.tsx`.
-2. Criar as seções da página **na mesma pasta** e importá-las com caminho relativo.
-3. Se a página precisar de estado, criar um shell próprio na pasta e carregá-lo com
-   `dynamic(..., { ssr: false })` apenas se depender de APIs do navegador na
-   inicialização.
-4. Reutilizar `src/components` e `src/lib`; não duplicar formatação, totais ou
+2. Se a página tiver cabeçalho próprio, criar `src/app/<rota>/layout.tsx` com ele:
+   o cabeçalho não pertence ao shell cliente.
+3. Criar as seções da página **na mesma pasta** e importá-las com caminho relativo.
+4. Se a página precisar de estado, criar um shell próprio na pasta e carregá-lo com
+   `dynamic(..., { ssr: false })` **a partir de um client component** (o próprio
+   `page.tsx` com `"use client"`), nunca de um server component.
+5. Antes de criar um arquivo novo, verifique se o componente é usado por um único
+   chamador: nesse caso ele deve ser declarado no topo desse arquivo.
+6. Reutilizar `src/components` e `src/lib`; não duplicar formatação, totais ou
    chamadas de canvas.
-5. Atualizar este documento e [ARCHITECTURE.md](./ARCHITECTURE.md) se a estrutura
+7. Atualizar este documento e [ARCHITECTURE.md](./ARCHITECTURE.md) se a estrutura
    mudar.

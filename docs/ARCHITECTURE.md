@@ -8,7 +8,9 @@ exportação acontecem no navegador.
 
 Consequências diretas:
 
-- Não existe banco de dados, API route, server action ou sessão de servidor.
+- Não existe banco de dados, API route nem server action. O único código de
+  servidor é `src/proxy.ts`, que verifica o cookie `jm_auth` e manda quem não está
+  autenticado para `/auth`.
 - Os dados vivem no `localStorage` do navegador de quem usa (ver
   [DATA-MODEL.md](./DATA-MODEL.md)).
 - O documento A4 é desenhado em `<canvas>` por código imperativo, não por HTML/CSS
@@ -24,18 +26,29 @@ para listas flutuantes.
 
 ```mermaid
 flowchart TD
-  Page["src/app/(home)/page.tsx<br/>(server component)"]
-  Client["app-client.tsx<br/>dynamic ssr:false"]
-  Shell["app-shell.tsx<br/>estado + efeitos + handlers"]
+  Proxy["src/proxy.ts<br/>verifica o cookie jm_auth"]
+  Layout["src/app/(home)/layout.tsx<br/>(server component)"]
+  Header["AppHeader<br/>marca + sair<br/>(declarado no layout)"]
+  Page["src/app/(home)/page.tsx<br/>(client component)"]
+  Auth["src/app/auth/page.tsx<br/>(server component)"]
+  Login["auth/login-screen.tsx<br/>formulário de entrada"]
+  Shell["app-shell.tsx<br/>abas + validação + exportação"]
+  Hooks["hooks da tela<br/>src/lib/hooks/*.ts"]
   Sections["seções da página<br/>src/app/(home)/*.tsx"]
   Shared["componentes reutilizáveis<br/>src/components/*.tsx"]
   UI["primitivas shadcn/ui<br/>src/components/ui/*.tsx"]
   Lib["regras do app<br/>src/lib/*.ts"]
   Doc["motor do documento<br/>src/lib/document/*"]
-  Browser["localStorage / canvas / clipboard"]
+  Browser["localStorage / cookies / canvas / clipboard"]
   Static["public/catalog.json, header.png, fonts"]
 
-  Page --> Client --> Shell
+  Proxy -->|sem jm_auth| Auth --> Login
+  Proxy -->|com jm_auth| Layout
+  Layout --> Header
+  Layout --> Page
+  Login --> Browser
+  Page -->|dynamic ssr:false| Shell
+  Shell --> Hooks
   Shell --> Sections
   Sections --> Shared
   Sections --> Lib
@@ -54,6 +67,9 @@ Regras de dependência:
 - `src/app` pode importar `src/components` e `src/lib`.
 - `src/components` pode importar `src/lib` e `src/components/ui`.
 - `src/lib` **não** importa componentes React nem nada de `src/app`.
+- `src/lib/hooks` é a única exceção dentro de `src/lib`: pode usar React
+  (`useState`, `useEffect`, …), mas só importa outros módulos de `src/lib` — nunca
+  `src/app`, `src/components` ou `src/components/ui`.
 - `src/lib/document` não importa componentes React; só usa Canvas, imagens e
   utilidades puras.
 - `src/components/ui` é gerado pelo shadcn; não deve ganhar regra de negócio.
@@ -71,10 +87,23 @@ orcamento/
 │   └── atualizar-catalogo.mjs     atualiza o catálogo pelo sitemap da loja
 ├── src/
 │   ├── app/
-│   │   ├── (home)/                rota / e todas as seções da tela
+│   │   ├── (home)/                rota / e as seções da tela principal
+│   │   │   ├── layout.tsx         layout da rota: cabeçalho (AppHeader) e fundo
+│   │   │   ├── page.tsx           carrega o AppShell com dynamic ssr:false
+│   │   │   ├── app-shell.tsx      abas, validação, exportação + DocumentPreview
+│   │   │   ├── budget-form.tsx    orçamento + ProductSearch/BudgetItems
+│   │   │   ├── receipt-form.tsx   recibo + ReceiptItems/SignaturePanel
+│   │   │   ├── client-fields.tsx  cliente/data/CNPJ (os dois modos)
+│   │   │   ├── action-bar.tsx     exportar, copiar e limpar
+│   │   │   ├── mobile-preview.tsx prévia em tela cheia no celular
+│   │   │   └── images-dialog.tsx  salvar imagem quando a cópia falha
+│   │   ├── auth/                  rota /auth (tela de login)
+│   │   │   ├── login-screen.tsx
+│   │   │   └── page.tsx
 │   │   ├── favicon.ico
 │   │   ├── globals.css            Tailwind, fontes, tokens e estilos do documento
 │   │   └── layout.tsx             layout raiz (metadata, lang pt-BR)
+│   ├── proxy.ts                   redireciona para /auth sem o cookie jm_auth
 │   ├── components/
 │   │   ├── auto-grow-textarea.tsx
 │   │   ├── brand-logo.tsx
@@ -87,6 +116,7 @@ orcamento/
 │       ├── auth.ts                 credenciais e sessão
 │       ├── catalog.ts              parse, categorias e busca do catálogo
 │       ├── document/               motor do A4 e exportação
+│       ├── hooks/                  hooks de tela (catalog, flash, persisted-state…)
 │       ├── documents.ts            documentos novos (padrões)
 │       ├── format.ts               dinheiro, data, CNPJ, id e foto
 │       ├── search.ts               busca exata + fuzzy e destaque
@@ -111,25 +141,29 @@ orcamento/
 
 Não há store global (Redux, Zustand, Context). O padrão é:
 
-1. **`AppShell`** é o único dono do estado do app (`orc`, `rec`, `mode`, assinatura,
-   preços, catálogo, avisos).
-2. Seções de página são **controladas**: recebem `doc`/`products` e callbacks
-   (`onPatch`, `onUpdateItem`, …). Não guardam cópia do documento.
-3. Toda alteração sobe para `AppShell`, que atualiza o estado e deixa os efeitos de
-   persistência gravarem no `localStorage`.
-4. A prévia e a exportação leem o mesmo estado — não existe “documento paralelo”.
+1. **`AppShell`** guarda o estado que cruza modos (`orc`, `rec`, `mode`,
+   assinatura, preços) — sempre através de `usePersistedState` — além de aviso,
+   exportação e diálogo de imagens.
+2. Seções de página são **controladas**: recebem `doc`/`products` e o setter do
+   documento. Não guardam cópia do documento.
+3. Quem muda o documento é a própria seção que o edita
+   (`budget-form.tsx`, `receipt-form.tsx`), chamando o setter recebido; o hook
+   `usePersistedState` grava no `localStorage`.
+4. Efeitos de carregamento (cabeçalho, catálogo, assinatura, breakpoint) moram em
+   hooks (`src/lib/hooks/`), nunca no `AppShell`.
+5. A prévia e a exportação leem o mesmo estado — não existe “documento paralelo”.
 
 ```mermaid
 sequenceDiagram
   participant U as Usuário
-  participant S as AppShell
   participant D as Seção da página
+  participant S as AppShell
   participant L as localStorage
   participant R as lib/document
 
   U->>D: edita campo / item
-  D->>S: callback (patch)
-  S->>S: setState
+  D->>D: handler local (patch / addItem)
+  D->>S: setDoc (usePersistedState)
   S->>L: efeito saveJSON
   S->>R: renderPages (prévia)
   R-->>U: canvas A4 atualizado
@@ -152,9 +186,18 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
 
 - `src/app/layout.tsx` é server component: metadados, `lang="pt-BR"` e classes do
   `<body>`.
-- `src/app/(home)/page.tsx` só renderiza `<AppClient />`.
-- `app-client.tsx` carrega `AppShell` com `dynamic(..., { ssr: false })` porque o
-  estado inicial depende de `localStorage`.
+- `src/app/(home)/layout.tsx` é **client component**: declara `AppHeader` no topo do
+  próprio arquivo (o botão “Sair” usa `clearAuth` e `window.location`) e desenha o
+  fundo da página. Continua sendo renderizado no servidor como HTML — o cabeçalho
+  aparece na primeira pintura.
+- `src/proxy.ts` roda antes das rotas e libera a requisição somente com
+  `jm_auth=1`; sem o cookie, redireciona para `/auth`.
+- `src/app/auth/page.tsx` renderiza `LoginScreen`; ao entrar, o cookie é gravado e
+  o navegador segue para `/`.
+- `src/app/(home)/page.tsx` é **client component** (`"use client"`) e carrega
+  `AppShell` com `dynamic(..., { ssr: false })` porque o estado inicial depende de
+  `localStorage`. O `dynamic` com `ssr: false` não é permitido em server
+  component no Next 16 — é por isso que o `page.tsx` é cliente.
 - Por isso, **não** importe `app-shell` diretamente em um server component e não
   remova o `ssr: false` sem mover a leitura de `localStorage` para dentro de
   efeitos.
@@ -165,7 +208,10 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
 | --- | --- | --- |
 | Página/rota nova | `src/app/<rota>/page.tsx` | Crie a pasta da rota. |
 | Seção de uma página | `src/app/<rota>/*.tsx` | Importe com caminho relativo (`./secao`). |
+| Componente usado por **um** arquivo só | Topo desse arquivo | Não criar arquivo novo: declare fora da função do componente chamador. |
+| Cabeçalho/chrome de uma rota | `src/app/<rota>/layout.tsx` | Declare o cabeçalho no próprio layout; não colocar nele estado do documento. |
 | Componente usado em mais de uma página | `src/components/*.tsx` | Sem conhecimento de documento. |
+| Hook de estado/efeito de tela | `src/lib/hooks/<nome>.ts` | Nome sem `use-`; exporta `use<Nome>`. |
 | Primitiva de UI | `src/components/ui/` | Use `bunx shadcn@latest add <nome>`. |
 | Cálculo/regra de negócio | `src/lib/*.ts` | Funções puras sempre que possível. |
 | Desenho/exportação do documento | `src/lib/document/` | Só Canvas e utilidades puras. |
@@ -175,7 +221,7 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
 
 ## Convenções de código
 
-- Arquivos em **kebab-case** (`budget-items.tsx`, `money-input.tsx`).
+- Arquivos em **kebab-case** (`budget-form.tsx`, `money-input.tsx`).
 - Componentes em **PascalCase**, funções e hooks em **camelCase**.
 - Abreviações do domínio existentes: `orc` (orçamento), `rec` (recibo),
   `sig` (assinatura), `tot` (total), `qty` (quantidade), `unit` (valor unitário).
@@ -189,7 +235,9 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
 
 ## Restrições que não devem ser quebradas
 
-- **Sem backend.** Não introduza rotas de API, banco ou autenticação de servidor.
+- **Sem backend.** Não introduza rotas de API, banco ou autenticação real. O
+  `src/proxy.ts` apenas faz a checagem otimista do cookie `jm_auth` para escolher
+  entre `/` e `/auth`.
 - **Sem dependências pesadas** para gerar PDF (o PDF é montado à mão em
   `src/lib/document/pdf.ts`). Novas bibliotecas exigem justificativa e atualização
   desta documentação.
@@ -198,4 +246,4 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
 - **O documento é A4 em pontos (pt)**, com `PW = 595.5` e `PH = 842.25`. Medidas do
   layout não são pixels de tela.
 - **Nada é enviado para servidor.** Dados de cliente, preços e assinatura ficam
-  apenas no navegador.
+  apenas no navegador; o único cookie é o `jm_auth`.

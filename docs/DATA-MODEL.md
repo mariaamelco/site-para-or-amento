@@ -16,6 +16,7 @@ Definidos em `src/lib/types.ts`.
 | `PriceMemo` | `Record<string, string>` | Último valor unitário por `slug`. |
 | `Notice` | `text`, `kind` (`"" \| "ok" \| "err"`) | Mensagem de status. |
 | `SignatureSettings` | `raw`, `clean`, `name` | Tipo declarado; o `AppShell` mantém esses campos em estados separados. |
+| `HistoryEntry` | `id`, `savedAt`, `cliente`, `data`, `total`, `signature`, `mode` + `doc` | União discriminada por `mode`: guarda o orçamento ou o recibo inteiro para gerar o PDF de novo. Ver [Histórico](#histórico-indexeddb). |
 | `LoadedImage` | `source`, `width`, `height` | Em `src/lib/document/canvas.ts`; imagem pronta para canvas. |
 
 ### Valores padrão
@@ -147,8 +148,9 @@ reaproveitados pelos schemas de documento, para não duplicar a regra do CNPJ.
 
 ## Chaves do `localStorage`
 
-Definidas no `AppShell`. **Não renomeie** essas chaves sem migração: elas são as
-mesmas da versão antiga do site e garantir que quem já usava não perca dados.
+Definidas em `STORAGE_KEYS` (`src/lib/storage.ts`). **Não renomeie** essas chaves
+sem migração: elas são as mesmas da versão antiga do site e garantir que quem já
+usava não perca dados.
 
 | Chave | Conteúdo | Gravada por |
 | --- | --- | --- |
@@ -159,6 +161,7 @@ mesmas da versão antiga do site e garantir que quem já usava não perca dados.
 | `jm_sig_raw` | data URL da assinatura ou `null` | `AppShell` |
 | `jm_sig_clean` | `boolean` | `AppShell` |
 | `jm_sig_name` | `string` | `AppShell` |
+| `jm_doc_id` | id do documento em edição (`string`) | `useDocumentId` |
 
 ### Regras de leitura
 
@@ -186,6 +189,43 @@ mesmas da versão antiga do site e garantir que quem já usava não perca dados.
 4. A mesclagem com padrões (`restore` em `usePersistedState`) já cobre o resto.
 5. Atualizar este documento.
 
+## Histórico (`IndexedDB`)
+
+O histórico vive em **IndexedDB**, não no `localStorage`: são muitos documentos e
+cada um carrega o conteúdo completo. A biblioteca é o **Dexie**
+(`src/lib/history-store.ts`).
+
+```ts
+// banco "jm_history", tabela "entries"
+"[mode+id], savedAt"
+```
+
+| Campo | Para que serve |
+| --- | --- |
+| `[mode+id]` | Chave composta: o mesmo id pode ter um orçamento e um recibo. |
+| `id` | Id do documento exportado (`jm_doc_id`); salvar de novo **atualiza** a entrada em vez de duplicar. |
+| `savedAt` | ISO completo da gravação; índice da ordenação e base do prazo. |
+| `cliente`, `data`, `total` | Cópia dos dados que o card mostra, para a lista não abrir o payload. |
+| `signature` | `SignatureSettings` usada no documento; sem ela o recibo redesenhado sairia sem assinatura. |
+| `doc` | `BudgetDoc` ou `ReceiptDoc` completo — o que basta para **gerar o PDF de novo**. |
+
+- **O arquivo nunca é guardado**: PDF e PNG são gerados sob demanda a partir de
+  `doc` + `signature` (`renderExportPages`).
+- **TTL de 30 dias** (`HISTORY_TTL_DAYS` em `src/lib/schemas/history.ts`), porque
+  o IndexedDB não expira sozinho: `pruneHistoryEntries` apaga `savedAt` anterior
+  ao corte a cada leitura/gravação, e `historyEntryExpired` descarta o que sobrou.
+- **Quando grava**: ao baixar o PDF, baixar o PNG ou copiar a imagem
+  (`saveToHistory` no `AppShell`). Falha de IndexedDB é silenciosa para não
+  quebrar a exportação.
+- **Quando nasce um id novo**: na primeira visita (`storedDocumentId`) e a cada
+  “Novo documento” (`renewDocumentId`). “Abrir” no histórico devolve o id da
+  entrada, então reexportar aquele documento atualiza o mesmo card.
+- **Leitura tolerante**: `historyEntrySchema` valida o que foi lido com regras
+  mais frouxas que as do formulário, para uma entrada antiga não desaparecer por
+  causa de uma validação que mudou.
+- Entradas inválidas ou expiradas são ignoradas na listagem (não derrubam a
+  página).
+
 ## Autenticação
 
 `src/lib/auth.ts`:
@@ -203,12 +243,15 @@ mesmas da versão antiga do site e garantir que quem já usava não perca dados.
 
 ## Privacidade
 
-- Documentos, preços, nome e assinatura ficam no navegador de quem usa.
+- Documentos, preços, nome, assinatura e o histórico ficam no navegador de quem
+  usa.
 - Não há sincronização entre navegadores ou aparelhos.
 - A única requisição externa do app é para carregar imagens de produto da loja
   Digital Sat (via `/foto/:id`, repassado por `next.config.ts`).
-- “Novo documento” limpa o documento atual, mas **não** apaga `jm_prices` nem a
-  assinatura.
+- “Novo documento” limpa o documento atual e gera um id novo, mas **não** apaga
+  `jm_prices`, a assinatura nem o histórico.
+- O histórico se apaga sozinho depois de 30 dias (ver
+  [Histórico](#histórico-indexeddb)); o usuário não tem (ainda) botão de limpar.
 
 ## Exemplo de `jm_orc`
 

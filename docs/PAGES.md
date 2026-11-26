@@ -1,11 +1,12 @@
 # Páginas e seções da tela
 
-Todas as telas atuais ficam em **uma única rota**: `/`. A página é composta por
-seções que moram na própria pasta da rota, em `src/app/(home)/`. O cabeçalho
-(marca + sair) vive no layout da rota, `src/app/(home)/layout.tsx`, porque não
-depende do documento aberto; as abas de modo são uma seção da própria página. A
-regra de organização está em
-[ARCHITECTURE.md](./ARCHITECTURE.md#onde-colocar-código-novo).
+As telas ficam em **duas rotas protegidas**: `/` (orçamento e recibo) e
+`/historico` (documentos salvos). Cada rota é composta por seções que moram na
+própria pasta da rota, em `src/app/(home)/` e `src/app/historico/`. O cabeçalho
+(marca, atalho entre as duas telas e sair) é compartilhado e vive em
+`src/components/app-header.tsx`, porque não depende do documento aberto nem da
+rota; as abas de modo são uma seção da página inicial. A regra de organização
+está em [ARCHITECTURE.md](./ARCHITECTURE.md#onde-colocar-código-novo).
 
 ## Rotas
 
@@ -13,12 +14,15 @@ regra de organização está em
 | --- | --- | --- |
 | `/` | `src/app/(home)/page.tsx` | Carrega `AppShell` com `ssr: false` (é client component). Protegida pelo proxy. |
 | — | `src/app/(home)/layout.tsx` | Layout da rota protegida: fundo da página e cabeçalho (`AppHeader`). |
+| `/historico` | `src/app/historico/page.tsx` | Carrega `HistoryShell` com `ssr: false` (IndexedDB e `localStorage`). Protegida pelo proxy. |
+| — | `src/app/historico/layout.tsx` | Layout da rota do histórico: o mesmo fundo e o mesmo `AppHeader`. |
 | `/auth` | `src/app/auth/page.tsx` | Renderiza `LoginScreen`; grava o cookie `jm_auth` e volta para `/`. |
 | — | `src/app/layout.tsx` | Layout raiz: metadados, `lang="pt-BR"`, fontes e `globals.css`. |
 | — | `src/proxy.ts` | Sem o cookie `jm_auth`, redireciona para `/auth`. |
 
 `(home)` é um **route group**: não aparece na URL. Serve para agrupar a rota e
-todas as suas seções.
+todas as suas seções. `historico` é uma pasta normal: entra na URL como
+`/historico`.
 
 ## Mapa da tela
 
@@ -29,7 +33,9 @@ flowchart TD
   Login -->|credenciais válidas| Cookie["cookie jm_auth=1"]
   Cookie --> Layout
   Proxy -->|com jm_auth| Layout["(home)/layout.tsx"]
-  Layout --> Header["AppHeader<br/>BrandLogo + Sair"]
+  Proxy -->|com jm_auth| HistLayout["historico/layout.tsx"]
+  Layout --> Header["AppHeader<br/>BrandLogo + histórico/orçamento + Sair"]
+  HistLayout --> Header
   Layout --> Root["/ — page.tsx"]
   Root --> Shell[app-shell]
   Shell --> Hooks["hooks<br/>lib/hooks/*.ts"]
@@ -44,14 +50,20 @@ flowchart TD
   Shell --> MP["mobile-preview<br/>(recebe a prévia via children)"]
   Shell --> DP["DocumentPreview<br/>(declarado no próprio app-shell)"]
   Shell --> ID[images-dialog]
+  Shell --> Store[("IndexedDB jm_history<br/>history-store")]
+  HistLayout --> HistPage["/historico — page.tsx"]
+  HistPage --> HistShell[history-shell]
+  HistShell --> Store
+  HistShell --> Card["HistoryCard<br/>(declarado no próprio history-shell)"]
 ```
 
 ## Seções
 
-A pasta `(home)` tem poucos arquivos de propósito: cada componente auxiliar é
+A pasta de cada rota tem poucos arquivos de propósito: cada componente auxiliar é
 declarado **no topo do arquivo que o usa**, fora da função do componente
 chamador, e não vira arquivo próprio. O que sobra são as seções da página, as
-rotas (`page.tsx` / `layout.tsx`) e os componentes reaproveitados pelos dois modos.
+rotas (`page.tsx` / `layout.tsx`) e os componentes reaproveitados pelas duas telas
+e pelos dois modos.
 
 | Seção | Arquivo | Responsabilidade | Estado próprio |
 | --- | --- | --- | --- |
@@ -59,6 +71,10 @@ rotas (`page.tsx` / `layout.tsx`) e os componentes reaproveitados pelos dois mod
 | `AuthPage` | `auth/page.tsx` | Ponto de entrada da rota `/auth`. | nenhum |
 | `HomeLayout` | `(home)/layout.tsx` | Fundo da página e cabeçalho da rota protegida; contém `AppHeader`. | nenhum |
 | `AppShell` | `app-shell.tsx` | Abas de modo, validação, exportação, composição dos hooks; contém `DocumentPreview`. | aviso, ocupado, limpeza armada, imagens |
+| `AppHeader` | `components/app-header.tsx` | Marca, atalho entre `/` e `/historico` (ícone muda com a rota) e sair; usado pelos dois layouts. | nenhum (lê `usePathname`) |
+| `HistoryPage` | `historico/page.tsx` | Ponto de entrada de `/historico`; carrega `HistoryShell` (`ssr: false`). | nenhum |
+| `HistoryLayout` | `historico/layout.tsx` | Fundo e cabeçalho da rota do histórico; contém `AppHeader`. | nenhum |
+| `HistoryShell` | `historico/history-shell.tsx` | Filtro orçamento/recibo, lista de cards e ações (abrir, baixar, pedir orçamento). Contém `HistoryCard`. | filtro, aviso, card ocupado |
 | `LoginScreen` | `auth/login-screen.tsx` | Formulário de entrada; grava o cookie e navega para `/`. | usuário, senha, “manter conectado”, erro |
 | `BudgetForm` | `budget-form.tsx` | Compõe cliente, busca, itens e total do orçamento; edita os itens. Contém `ProductSearch`, `BudgetItems` e `AddProductSplitButton`. | nenhum (ref da busca) |
 | `ClientFields` | `client-fields.tsx` | Nome, data e CNPJ do cliente (usado nos dois modos). | nenhum |
@@ -98,6 +114,7 @@ mutações de cada documento ficam no próprio formulário.
 | `busy` | `useState` | — | Exportação em andamento. |
 | `armed` | `useState` | — | “Novo documento” pedindo confirmação. |
 | `images` | `useState` | — | Páginas para o diálogo de imagem. |
+| `documentId` | `useDocumentId` | `jm_doc_id` | Id do documento em edição; chave da entrada no histórico. |
 
 Os documentos e as preferências são compartilhados entre modos, então continuam
 no `AppShell`; as mutações, porém, moram em quem as dispara (ver handlers).
@@ -117,6 +134,8 @@ correspondente.
 | `useSignatureImage` | `lib/hooks/signature-image.ts` | `{ image, notice, setNotice }` da assinatura processada. |
 | `useDesktopPreview` | `lib/hooks/desktop-preview.ts` | `{ desktop, previewOpen, setPreviewOpen }` conforme `matchMedia`. |
 | `useFlash` | `lib/hooks/flash.ts` | `{ flashId, flash }` para destacar item novo por 1,5 s. |
+| `useDocumentId` | `lib/hooks/document-id.ts` | `{ id, renew }` do documento em edição (cria na primeira visita, renova em “Novo documento”). |
+| `useHistoryEntries` | `lib/hooks/history.ts` | `{ entries, loading, failed }` do IndexedDB, sem os expirados. |
 
 ### Handlers
 
@@ -130,11 +149,12 @@ correspondente.
 | `handleSignatureFile` / `resetSignature` | `receipt-form.tsx` | Valida, reduz e processa (ou remove) a assinatura. |
 | `validate` | `app-shell.tsx` | Exige cliente e valida os itens do orçamento com zod (ao menos um item, quantidade e valor unitário maiores que zero; foco no campo inválido). |
 | `formValid` (derivado) | `app-shell.tsx` | `formErrors` + `formIsValid` sobre `budgetFormSchema`/`receiptFormSchema`; alimenta o `isValid` do `ActionBar`. |
-| `renderExportPages` | `app-shell.tsx` | Prepara fontes/fotos e renderiza as páginas na escala de exportação. |
-| `handleDownloadPdf` / `handleDownloadPng` / `handleCopyImage` | `app-shell.tsx` | Exportações (dependem do modo e do documento validado). |
-| `handleReset` | `app-shell.tsx` | Limpeza em dois cliques (`armed` por 4 s). |
+| `renderExportPages` | `app-shell.tsx` → `lib/document/export.ts` | Prepara fontes/fotos e renderiza as páginas na escala de exportação (a implementação é compartilhada com o histórico). |
+| `handleDownloadPdf` / `handleDownloadPng` / `handleCopyImage` | `app-shell.tsx` | Exportações (dependem do modo e do documento validado) e gravação no histórico (`saveToHistory`). |
+| `saveToHistory` | `app-shell.tsx` | Grava o documento no IndexedDB com o `documentId` atual; falha em silêncio para não quebrar a exportação. |
+| `handleReset` | `app-shell.tsx` | Limpeza em dois cliques (`armed` por 4 s) e renovação do `documentId` (`renew`). |
 | `handleModeChange` | `app-shell.tsx` | Troca a aba ativa e limpa aviso e limpeza armada. |
-| `handleSignOut` | `layout.tsx` (`AppHeader`) | Limpa o cookie (`clearAuth`) e navega para `/auth`. |
+| `handleSignOut` | `components/app-header.tsx` | Limpa o cookie (`clearAuth`) e navega para `/auth`. |
 
 ### Layout responsivo
 
@@ -142,6 +162,31 @@ correspondente.
   (`DocumentPreview`).
 - Celular: prévia em tela cheia aberta por botão flutuante (`MobilePreview`).
 - Dentro das listas, `sm:` controla variações de botões e grades.
+
+## `AppHeader` (cabeçalho compartilhado)
+
+- Fica em `src/components` porque os dois layouts (`(home)` e `historico`) o
+  usam; não depende do documento aberto, só da rota (`usePathname`).
+- À esquerda, `BrandLogo`; à direita, o atalho entre as telas e “Sair”.
+- O atalho é um `Link` com ícone `History` em `/` e ícone `FileText` em
+  `/historico` (o `aria-label` acompanha: “Histórico” / “Voltar para o orçamento”).
+
+## `HistoryShell` (`/historico`)
+
+- Lista o que está no IndexedDB (`useHistoryEntries` já descarta o que passou dos
+  30 dias) e filtra por modo com as mesmas `Tabs` da tela inicial; o padrão é
+  **orçamentos**.
+- Cada card (`HistoryCard`, declarado no topo de `history-shell.tsx`) mostra nome
+  do cliente, data, tipo e valor, e traz no extremo direito o menu de três
+  pontinhos (`DropdownMenu` de `src/components/ui`).
+- Ações do menu:
+  - **Abrir**: `restoreHistoryEntry` devolve documento, modo, assinatura e id ao
+    `localStorage` e navega para `/`.
+  - **Baixar**: redesenha as páginas com `renderExportPages` a partir de
+    `entry.doc` + `entry.signature` e baixa o PDF.
+  - **Pedir orçamento** (só em orçamento): `quoteText` monta a lista
+    `produto  quantidadeX` e copia para a área de transferência.
+- O arquivo exportado nunca é guardado: o card redesenha o PDF quando pedido.
 
 ## `LoginScreen`
 

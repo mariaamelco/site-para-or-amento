@@ -75,6 +75,18 @@ Logotipo em SVG + texto “J&M SYSTEM / SEGURANÇA E TECNOLOGIA”.
 - Textos em branco fixo; pensado para fundo escuro (cabeçalho e login).
 - Usado no cabeçalho do app e na tela de login.
 
+### `AppHeader` — `app-header.tsx`
+
+Cabeçalho das rotas protegidas, usado por `(home)/layout.tsx` e
+`historico/layout.tsx`.
+
+- À esquerda, `BrandLogo`; à direita, o atalho entre as telas e “Sair”.
+- Não recebe props: lê a rota com `usePathname`. Em `/` mostra o ícone `History`
+  (leva a `/historico`); em `/historico` mostra `FileText` (volta para `/`), com
+  `aria-label` e `title` correspondentes.
+- “Sair” chama `clearAuth()` e usa `window.location.replace(AUTH_ROUTE)` para
+  descartar o cache do cliente.
+
 ## Componentes de layout (`src/components/layout`)
 
 Componentes que pegam uma primitiva e a especializam para o app. Nunca recebem
@@ -163,6 +175,7 @@ Componentes instalados hoje:
 | `card.tsx` | `Card`, `CardHeader`, `CardTitle`, `CardContent`, `CardFooter`, `CardDescription`, `CardAction` |
 | `checkbox.tsx` | `Checkbox` |
 | `dialog.tsx` | `Dialog`, `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`, `DialogOverlay`, `DialogPortal` |
+| `dropdown-menu.tsx` | `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuGroup`, `DropdownMenuLabel`, `DropdownMenuSeparator`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup`, `DropdownMenuRadioItem`, `DropdownMenuShortcut`, `DropdownMenuSub`, `DropdownMenuSubTrigger`, `DropdownMenuSubContent` |
 | `input.tsx` | `Input` |
 | `label.tsx` | `Label` |
 | `select.tsx` | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton` |

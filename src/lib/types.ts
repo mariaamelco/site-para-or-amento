@@ -61,3 +61,24 @@ export interface SignatureSettings {
   clean: boolean;
   name: string;
 }
+
+interface HistoryEntryBase {
+  /** Id do documento quando foi salvo: salvar de novo atualiza a mesma entrada. */
+  id: string;
+  /** Momento da gravação (ISO completo); base do prazo de 30 dias. */
+  savedAt: string;
+  cliente: string;
+  /** Data do documento no formato ISO (yyyy-mm-dd). */
+  data: string;
+  total: number;
+  /** Assinatura usada no recibo, necessária para redesenhar o PDF depois. */
+  signature: SignatureSettings;
+}
+
+/**
+ * Documento salvo no histórico. Guarda tudo o que é preciso para gerar o PDF de
+ * novo — o arquivo em si nunca é armazenado.
+ */
+export type HistoryEntry =
+  | (HistoryEntryBase & { mode: "orc"; doc: BudgetDoc })
+  | (HistoryEntryBase & { mode: "rec"; doc: ReceiptDoc });

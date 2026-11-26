@@ -36,7 +36,8 @@ scripts/atualizar-catalogo.mjs   atualiza o catálogo a partir do sitemap da loj
 src/app/                    App Router: layout, estilos globais e páginas
   (home)/                   página inicial (rota /) e as seções dela
                             (orçamento, recibo, prévia, ações)
-src/components/             componentes reutilizáveis (money-input, product-thumb…)
+  historico/                página de histórico (rota /historico) e as seções dela
+src/components/             componentes reutilizáveis (app-header, money-input, product-thumb…)
   ui/                       componentes do shadcn/ui
 src/lib/                    regras do app
   format.ts                 dinheiro, datas, CNPJ, id de produto
@@ -44,6 +45,9 @@ src/lib/                    regras do app
   totals.ts                 soma dos itens
   storage.ts                persistência no localStorage
   documents.ts              documento novo (orçamento/recibo)
+  history.ts                texto do pedido de orçamento e entrada do histórico
+  history-store.ts          histórico no IndexedDB (Dexie) com prazo de 30 dias
+  schemas/                  validação zod das regras (orçamento, recibo, histórico)
   document/                 desenho do A4 e exportação
     render.ts               escolhe orçamento ou recibo e pagina
     budget.ts, receipt.ts   layout de cada documento
@@ -84,7 +88,16 @@ O repasse de `/foto/:id` para a loja (necessário para as fotos aparecerem no PD
 
 - Os orçamentos, recibos, preços digitados e a assinatura enviada ficam salvos no navegador de quem usa (`localStorage`). Não vão para nenhum servidor e não passam de um navegador para outro.
 - As chaves usadas são as mesmas da versão antiga (`jm_orc`, `jm_rec`, `jm_mode`, `jm_prices`, `jm_sig_raw`, `jm_sig_clean`, `jm_sig_name`, `jm_auth`), então quem já usava o site não perde nada ao trocar de versão no mesmo endereço.
+- O histórico fica num banco do próprio navegador (`IndexedDB`, banco `jm_history`), também sem servidor. O identificador do documento atual é o `jm_doc_id`.
 - As fontes são servidas pelo próprio site (`public/fonts`), sem depender do Google Fonts.
+
+## Histórico de orçamentos e recibos
+
+- No cabeçalho, o ícone de relógio abre a página **Histórico**; lá dentro o ícone passa a ser o de documento e volta para o orçamento.
+- A lista mostra primeiro os **orçamentos**; a aba **Recibos** mostra os recibos. Cada card traz o nome do cliente, a data e o valor.
+- O menu de três pontinhos do card tem **Abrir** (carrega o documento de volta na página inicial), **Baixar** (gera o PDF de novo) e, só nos orçamentos, **Pedir orçamento** (copia para a área de transferência a lista de produtos e quantidades, para colar no WhatsApp, por exemplo).
+- O documento entra no histórico quando você baixa o PDF, baixa a imagem ou copia a imagem — ou seja, depois de pronto. Exportar de novo o mesmo documento atualiza o card, em vez de criar outro; **Novo documento** começa um registro novo.
+- O histórico vale só naquele navegador e **expira em 30 dias**. Nenhum arquivo é guardado: o que fica salvo são os dados do documento, e o PDF é gerado na hora em que você clica em **Baixar**.
 
 ## Atualização automática do catálogo
 

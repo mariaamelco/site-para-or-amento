@@ -70,13 +70,20 @@ Há três executores por motivos históricos. **Mantenha a divisão:**
 Cobertura atual: `parseMoney`, formatadores, `maskCNPJ`, `productId`, busca do
 catálogo, destaque, totais, validação zod do orçamento, produto já adicionado,
 validade do documento (orçamento e recibo), `documentName`, Sellers/tolerância, as
-duas camadas da busca e a validação do cliente (`src/lib/unit/form.test.ts` cobre
-`formErrors`, `markDirty`, `formIsValid`, `isFieldInvalid` e `clientFieldsSchema`).
+duas camadas da busca, a validação do cliente (`src/lib/unit/form.test.ts` cobre
+`formErrors`, `markDirty`, `formIsValid`, `isFieldInvalid` e `clientFieldsSchema`)
+e as regras do histórico (`src/lib/schemas/history.ts` + `src/lib/history.ts`:
+entrada salva por modo, texto do “pedir orçamento” e o prazo de 30 dias).
 
 No Playwright, `e2e/client-fields.spec.ts` cobre o erro do cliente e o CNPJ,
 `e2e/budget-items.spec.ts` cobre quantidade/valor unitário zerados (borda, mensagem
-e erro por linha) e `e2e/export-gating.spec.ts` cobre o bloqueio de PDF/imagem/cópia
-enquanto o documento tem erro.
+e erro por linha), `e2e/export-gating.spec.ts` cobre o bloqueio de PDF/imagem/cópia
+enquanto o documento tem erro e `e2e/history.spec.ts` cobre o filtro padrão, o card
+criado pela exportação, a cópia do “pedir orçamento” e o PDF gerado a partir do que
+está salvo.
+
+O IndexedDB não tem teste unitário (depende do navegador): o comportamento de
+gravar, listar e expirar é coberto pelo `e2e/history.spec.ts`.
 
 ## Validação mínima por tipo de mudança
 
@@ -86,6 +93,7 @@ enquanto o documento tem erro.
 | Regra em `src/lib` | `bun run typecheck` + `bun test` |
 | Componente/página | `bun run typecheck` + `bun run lint` |
 | Formulário/validação/exportação | `bun run typecheck` + `bun test` + `bun run test:e2e` |
+| Histórico (rota, IndexedDB, cards) | `bun run typecheck` + `bun test` + `bun run test:e2e` |
 | Documento/PDF | `bun run typecheck` + `bun test` + conferir prévia e PDF manualmente |
 | Catálogo/script | `bun scripts/atualizar-catalogo.mjs` (quando seguro) + `bun test` |
 | Versão/deploy | `bun run build` |

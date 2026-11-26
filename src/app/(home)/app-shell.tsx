@@ -18,7 +18,13 @@ import { useSignatureImage } from "@/lib/hooks/signature-image";
 import { canvasToBlob, type LoadedImage } from "@/lib/document/canvas";
 import { ensureFonts } from "@/lib/document/assets";
 import { COMPANY, PW } from "@/lib/document/constants";
-import { documentName, downloadBlob } from "@/lib/document/download";
+import {
+  deliverFiles,
+  documentName,
+  toFile,
+  type DeliverResult,
+} from "@/lib/document/download";
+import { ShareFilesDialog } from "@/components/share-files-dialog";
 import { renderExportPages as renderPagesForExport } from "@/lib/document/export";
 import { buildPDF } from "@/lib/document/pdf";
 import { setPhotoListener } from "@/lib/document/photos";
@@ -192,6 +198,8 @@ export function AppShell() {
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
   const [images, setImages] = useState<HTMLCanvasElement[] | null>(null);
+  /** Arquivos esperando um toque para abrir o compartilhamento do celular. */
+  const [pendingShare, setPendingShare] = useState<File[] | null>(null);
   const { id: documentId, renew: renewDocumentId } = useDocumentId();
 
   const armTimer = useRef<number | null>(null);
@@ -281,6 +289,24 @@ export function AppShell() {
   const formValid =
     mode === "orc" ? formIsValid(orcErrors) : formIsValid(recErrors);
 
+  /** Mensagem depois de baixar/compartilhar; no celular pode pedir mais um toque. */
+  function reportDelivery(result: DeliverResult, files: File[]) {
+    const what = files.length === 1 ? files[0].name : `${files.length} arquivos`;
+    if (result === "downloaded") {
+      showNotice(
+        files.length === 1 ? `Arquivo baixado: ${what}` : `${what} baixados.`,
+        "ok",
+      );
+    } else if (result === "shared") {
+      showNotice(`Enviado: ${what}`, "ok");
+    } else if (result === "cancelled") {
+      showNotice("Envio cancelado.");
+    } else {
+      showNotice(`Pronto: ${what}. Toque em “Enviar arquivo”.`);
+      setPendingShare(files);
+    }
+  }
+
   async function handleDownloadPdf() {
     if (busy || !validate()) return;
     setBusy(true);
@@ -289,9 +315,10 @@ export function AppShell() {
       const pages = await renderExportPages();
       const blob = await buildPDF(pages);
       const name = documentName(mode, currentDoc, "pdf", 1, pages.length);
-      downloadBlob(blob, name);
+      const files = [toFile(blob, name)];
+      const result = await deliverFiles(files);
       await saveToHistory();
-      showNotice(`Arquivo baixado: ${name}`, "ok");
+      reportDelivery(result, files);
     } catch {
       showNotice("Não foi possível gerar o PDF. Tente novamente.", "err");
     } finally {
@@ -305,23 +332,15 @@ export function AppShell() {
     showNotice("Gerando imagem…");
     try {
       const pages = await renderExportPages();
-      const names: string[] = [];
+      const files: File[] = [];
       for (let index = 0; index < pages.length; index++) {
         const blob = await canvasToBlob(pages[index], "image/png");
         const name = documentName(mode, currentDoc, "png", index + 1, pages.length);
-        downloadBlob(blob, name);
-        names.push(name);
-        if (index < pages.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
+        files.push(toFile(blob, name));
       }
+      const result = await deliverFiles(files);
       await saveToHistory();
-      showNotice(
-        names.length === 1
-          ? `Arquivo baixado: ${names[0]}`
-          : `${names.length} arquivos baixados.`,
-        "ok",
-      );
+      reportDelivery(result, files);
     } catch {
       showNotice("Não foi possível gerar a imagem. Tente novamente.", "err");
     } finally {
@@ -493,6 +512,14 @@ export function AppShell() {
       )}
 
       <ImagesDialog pages={images} onClose={() => setImages(null)} />
+      <ShareFilesDialog
+        files={pendingShare}
+        onDone={(result) => {
+          const files = pendingShare ?? [];
+          setPendingShare(null);
+          reportDelivery(result, files);
+        }}
+      />
     </>
   );
 }

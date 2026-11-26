@@ -66,26 +66,48 @@ Miniatura quadrada da foto do produto da Digital Sat.
 
 ### `BrandLogo` — `brand-logo.tsx`
 
-Logotipo em SVG + texto “J&M SYSTEM / SEGURANÇA E TECNOLOGIA”.
+Marca da empresa para fundo escuro (cabeçalho e login).
 
 | Prop | Tipo | Padrão | Descrição |
 | --- | --- | --- | --- |
-| `color` | `string` | `"#fff"` | Cor do traço/ícone do escudo. |
+| `company` | `CompanyId` | `"jm"` | Empresa a mostrar. |
+| `color` | `string` | `"#fff"` | Cor do traço/ícone do escudo (só J&M). |
 
-- Textos em branco fixo; pensado para fundo escuro (cabeçalho e login).
-- Usado no cabeçalho do app e na tela de login.
+- **J&M**: SVG do escudo + texto “J&M SYSTEM / SEGURANÇA E TECNOLOGIA”.
+- **Vision Tech**: imagem `public/logo-vision-tech.png` (escudo + “VISION TECH /
+  Instalações & Segurança”, fundo preto), 40 px de altura.
+- Usado no cabeçalho do app (dentro do seletor de empresa) e na tela de login.
 
 ### `AppHeader` — `app-header.tsx`
 
 Cabeçalho das rotas protegidas, usado por `(home)/layout.tsx` e
 `historico/layout.tsx`.
 
-- À esquerda, `BrandLogo`; à direita, o atalho entre as telas e “Sair”.
-- Não recebe props: lê a rota com `usePathname`. Em `/` mostra o ícone `History`
+- À esquerda, o seletor de empresa (`CompanySwitcher`, declarado no topo do
+  arquivo): o `BrandLogo` da empresa escolhida é o gatilho de um `DropdownMenu`
+  com uma opção por empresa (`DropdownMenuRadioItem` com `closeOnClick`). Trocar
+  grava a escolha com `useCompany` e o menu fecha.
+- A borda inferior usa a cor `accent` da empresa (vermelho na J&M, prata na
+  Vision Tech).
+- À direita, o atalho entre as telas e “Sair”.
+- Não recebe props: lê a rota com `usePathname` e a empresa com `useCompany`. Em `/` mostra o ícone `History`
   (leva a `/historico`); em `/historico` mostra `FileText` (volta para `/`), com
   `aria-label` e `title` correspondentes.
 - “Sair” chama `clearAuth()` e usa `window.location.replace(AUTH_ROUTE)` para
   descartar o cache do cliente.
+
+### `ShareFilesDialog` — `share-files-dialog.tsx`
+
+Janela “Arquivo pronto” com o botão **Enviar arquivo**. Aparece quando o celular
+recusou abrir o compartilhamento sozinho (o arquivo demorou a ficar pronto e o
+navegador exige um toque recente). Usada pela tela principal e pelo histórico.
+
+| Prop | Tipo | Descrição |
+| --- | --- | --- |
+| `files` | `File[] \| null` | Arquivos esperando o toque; `null` fecha a janela. |
+| `onDone` | `(result: "shared" \| "cancelled") => void` | Chamado ao enviar ou fechar. |
+
+- O botão chama `shareFiles(files)` (ver [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md#entrega-baixar-ou-compartilhar)).
 
 ## Componentes de layout (`src/components/layout`)
 

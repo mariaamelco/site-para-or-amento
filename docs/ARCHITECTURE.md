@@ -30,7 +30,7 @@ flowchart TD
   Proxy["src/proxy.ts<br/>verifica o cookie jm_auth"]
   Layout["src/app/(home)/layout.tsx<br/>(server component)"]
   HistLayout["src/app/historico/layout.tsx<br/>(server component)"]
-  Header["AppHeader<br/>marca + atalho + sair<br/>(src/components)"]
+  Header["AppHeader<br/>empresa + atalho + sair<br/>(src/components)"]
   Page["src/app/(home)/page.tsx<br/>(client component)"]
   HistPage["src/app/historico/page.tsx<br/>(client component)"]
   Auth["src/app/auth/page.tsx<br/>(server component)"]
@@ -46,7 +46,7 @@ flowchart TD
   Doc["motor do documento<br/>src/lib/document/*"]
   Store["histórico<br/>src/lib/history-store.ts"]
   Browser["localStorage / IndexedDB / cookies / canvas / clipboard"]
-  Static["public/catalog.json, header.png, fonts"]
+  Static["public/catalog.json, cabeçalhos, logos, fonts"]
 
   Proxy -->|sem jm_auth| Auth --> Login
   Proxy -->|com jm_auth| Layout
@@ -108,10 +108,14 @@ orcamento/
 │   ├── client-fields.spec.ts      validação dos campos do cliente
 │   ├── budget-items.spec.ts       validação dos itens do orçamento
 │   ├── export-gating.spec.ts      exportação bloqueada enquanto há erro
+│   ├── company.spec.ts            escolha/troca de empresa (login, cabeçalho, histórico)
+│   ├── share.spec.ts              celular compartilha só o arquivo; computador baixa
 │   └── history.spec.ts            histórico: filtro, card salvo e pedir orçamento
 ├── public/
 │   ├── catalog.json               catálogo [nome, slug, categoria] — ~2.788 itens
 │   ├── header.png                 cabeçalho J&M usado nos documentos
+│   ├── header-vision-tech.png     cabeçalho Vision Tech (mesmo desenho, faixa prata)
+│   ├── logo-vision-tech.png       marca Vision Tech para o cabeçalho do site e o login
 │   └── fonts/                     Arimo e Open Sans (tela e canvas)
 ├── scripts/
 │   └── atualizar-catalogo.mjs     atualiza o catálogo pelo sitemap da loja
@@ -146,7 +150,8 @@ orcamento/
 │   │   │       └── input/
 │   │   │           ├── input.layout.tsx          InputLayout (campo de texto)
 │   │   │           └── money-input.layout.tsx    MoneyInputLayout (valor em R$)
-│   │   ├── app-header.tsx          cabeçalho das rotas protegidas (marca, atalho, sair)
+│   │   ├── app-header.tsx          cabeçalho das rotas protegidas (empresa, atalho, sair)
+│   │   ├── share-files-dialog.tsx  “Enviar arquivo” quando o celular pede outro toque
 │   │   ├── auto-grow-textarea.tsx
 │   │   ├── brand-logo.tsx
 │   │   ├── money-input.tsx
@@ -158,6 +163,7 @@ orcamento/
 │       ├── unit/form.test.ts       testes unitários do formulário (vitest)
 │       ├── auth.ts                 credenciais e sessão
 │       ├── catalog.ts              parse, categorias e busca do catálogo
+│       ├── companies.ts            empresas (J&M, Vision Tech): rodapé, assinante, cabeçalho
 │       ├── document/               motor do A4 e exportação (export.ts, render.ts…)
 │       ├── hooks/                  hooks de tela (catalog, flash, persisted-state…)
 │       ├── documents.ts            documentos novos (padrões)
@@ -268,7 +274,9 @@ sequenceDiagram
    histórico) aguarda fontes, cabeçalho e fotos e chama `renderPages` com
    `EXPORT_SCALE` (~200 dpi).
 4. `buildPDF` monta o PDF (uma imagem JPEG por página) ou `canvasToBlob` gera PNG.
-5. `documentName` cria o nome do arquivo e `downloadBlob` baixa.
+5. `documentName` cria o nome do arquivo e `deliverFiles` entrega: baixa no
+   computador e, no celular, abre a tela de compartilhar só com o arquivo (se o
+   celular pedir outro toque, `ShareFilesDialog` mostra “Enviar arquivo”).
 6. A exportação concluída chama `saveToHistory()`: o documento inteiro (e a
    assinatura usada) vai para o IndexedDB com o `documentId` atual.
 7. Se a cópia para a área de transferência falhar, `ImagesDialog` mostra a imagem

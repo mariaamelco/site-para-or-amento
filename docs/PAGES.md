@@ -107,9 +107,11 @@ mutações de cada documento ficam no próprio formulário.
 | `orc` | `usePersistedState` | `jm_orc` | Documento de orçamento. |
 | `rec` | `usePersistedState` | `jm_rec` | Documento de recibo. |
 | `priceMemo` | `usePersistedState` | `jm_prices` | Último valor usado por produto (slug). |
-| `sigRaw` | `usePersistedState` | `jm_sig_raw` | Imagem original da assinatura (data URL). |
-| `sigClean` | `usePersistedState` | `jm_sig_clean` | Remover fundo do papel. |
-| `sigName` | `usePersistedState` | `jm_sig_name` | Nome impresso sob a linha. |
+| `company` | prop (vinda de `page.tsx`, que usa `useCompany`) | `jm_company` | Empresa que emite o documento. Trocar remonta o `AppShell` (`key={company}`). |
+| `sigRaw` | `usePersistedState` | `jm_sig_raw` (+ sufixo da empresa) | Imagem original da assinatura (data URL). |
+| `sigClean` | `usePersistedState` | `jm_sig_clean` (+ sufixo) | Remover fundo do papel. |
+| `sigName` | `usePersistedState` | `jm_sig_name` (+ sufixo) | Nome impresso sob a linha; padrão é o `signer` da empresa. |
+| `pendingShare` | `useState` | — | Arquivos esperando um toque para abrir o compartilhamento do celular (`ShareFilesDialog`). |
 | `notice` | `useState` | — | Aviso da barra de ações. |
 | `busy` | `useState` | — | Exportação em andamento. |
 | `armed` | `useState` | — | “Novo documento” pedindo confirmação. |
@@ -130,7 +132,8 @@ correspondente.
 | --- | --- | --- |
 | `usePersistedState` | `lib/hooks/persisted-state.ts` | `[valor, setValor]` espelhado no `localStorage`; `restore` define o padrão. |
 | `useCatalog` | `lib/hooks/catalog.ts` | `{ products, loading, failed }` a partir de `/catalog.json`. |
-| `useHeaderImage` | `lib/hooks/header-image.ts` | `LoadedImage \| null` do cabeçalho J&M. |
+| `useHeaderImage` | `lib/hooks/header-image.ts` | `LoadedImage \| null` do cabeçalho da empresa (recebe `company`). |
+| `useCompany` | `lib/hooks/company.ts` | `[company, setCompany]`: empresa escolhida, compartilhada entre cabeçalho, login e tela (e entre abas) via `useSyncExternalStore`. |
 | `useSignatureImage` | `lib/hooks/signature-image.ts` | `{ image, notice, setNotice }` da assinatura processada. |
 | `useDesktopPreview` | `lib/hooks/desktop-preview.ts` | `{ desktop, previewOpen, setPreviewOpen }` conforme `matchMedia`. |
 | `useFlash` | `lib/hooks/flash.ts` | `{ flashId, flash }` para destacar item novo por 1,5 s. |
@@ -167,7 +170,10 @@ correspondente.
 
 - Fica em `src/components` porque os dois layouts (`(home)` e `historico`) o
   usam; não depende do documento aberto, só da rota (`usePathname`).
-- À esquerda, `BrandLogo`; à direita, o atalho entre as telas e “Sair”.
+- À esquerda, o seletor de empresa: a marca da empresa escolhida abre um menu com
+  “J&M System” e “Vision Tech”. A troca vale na hora para a prévia e para os
+  próximos PDFs; o documento em edição não muda.
+- À direita, o atalho entre as telas e “Sair”.
 - O atalho é um `Link` com ícone `History` em `/` e ícone `FileText` em
   `/historico` (o `aria-label` acompanha: “Histórico” / “Voltar para o orçamento”).
 
@@ -177,7 +183,7 @@ correspondente.
   30 dias) e filtra por modo com as mesmas `Tabs` da tela inicial; o padrão é
   **orçamentos**.
 - Cada card (`HistoryCard`, declarado no topo de `history-shell.tsx`) mostra nome
-  do cliente, data, tipo e valor, e traz no extremo direito o menu de três
+  do cliente, data, tipo, empresa e valor, e traz no extremo direito o menu de três
   pontinhos (`DropdownMenu` de `src/components/ui`).
 - A lista é **virtualizada** (`HistoryList`, também no topo do arquivo) com
   `useVirtualizer` do `@tanstack/react-virtual`: só os cards visíveis, mais a
@@ -187,10 +193,11 @@ correspondente.
 - Por causa da virtualização, a rolagem acontece **dentro da lista**
   (`max-h-[calc(100dvh-12rem)]`), e não na página. Trocar de aba volta ao topo.
 - Ações do menu:
-  - **Abrir**: `restoreHistoryEntry` devolve documento, modo, assinatura e id ao
-    `localStorage` e navega para `/`.
+  - **Abrir**: `restoreHistoryEntry` devolve documento, modo, assinatura, id e
+    **empresa** ao `localStorage` e navega para `/`.
   - **Baixar**: redesenha as páginas com `renderExportPages` a partir de
-    `entry.doc` + `entry.signature` e baixa o PDF.
+    `entry.doc` + `entry.signature` + `entry.company` e entrega o PDF
+    (`deliverFiles`: baixa no computador, compartilha no celular).
   - **Pedir orçamento** (só em orçamento): `quoteText` monta a lista
     `produto  quantidadeX` e copia para a área de transferência.
 - O arquivo exportado nunca é guardado: o card redesenha o PDF quando pedido.
@@ -203,6 +210,9 @@ correspondente.
   com “manter conectado”, com validade de 30 dias.
 - Ao entrar, faz navegação completa para `/`; o proxy já vê o cookie recém-gravado
   e libera a rota.
+- Tem a escolha da **empresa** (`CompanyPicker`, no topo do arquivo): dois botões
+  com as marcas, `role="radio"`. A escolha é gravada na hora com `useCompany` e a
+  marca no topo do cartão acompanha.
 - Mostra a versão (`APP_VERSION`).
 - Não é segurança real: o login apenas evita acesso casual.
 

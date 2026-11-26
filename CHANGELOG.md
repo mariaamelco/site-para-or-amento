@@ -7,6 +7,11 @@ Ao publicar uma versão nova, acrescente a seção dela no topo desta lista e at
 - **Y** (menor): função nova.
 - **Z** (correção): conserto ou ajuste pequeno.
 
+## Próxima versão (ainda na staging)
+
+- Duas empresas: **J&M System** e **Vision Tech**. Escolha na tela de login e troca a qualquer momento pela marca no cabeçalho. Cada empresa tem cabeçalho do documento (Vision Tech com faixa prata), dados de rodapé e assinatura próprios; o histórico guarda a empresa de cada documento.
+- Celular: PDF e imagem vão pela tela de compartilhar só com o arquivo (o WhatsApp não recebe mais o link "blob:").
+
 ## v1.0.0 — 2026-11-20
 
 Primeira versão de produção, já na estrutura Next.js + TypeScript + Tailwind (shadcn/ui).

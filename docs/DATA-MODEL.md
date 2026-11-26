@@ -16,8 +16,38 @@ Definidos em `src/lib/types.ts`.
 | `PriceMemo` | `Record<string, string>` | Último valor unitário por `slug`. |
 | `Notice` | `text`, `kind` (`"" \| "ok" \| "err"`) | Mensagem de status. |
 | `SignatureSettings` | `raw`, `clean`, `name` | Tipo declarado; o `AppShell` mantém esses campos em estados separados. |
-| `HistoryEntry` | `id`, `savedAt`, `cliente`, `data`, `total`, `signature`, `mode` + `doc` | União discriminada por `mode`: guarda o orçamento ou o recibo inteiro para gerar o PDF de novo. Ver [Histórico](#histórico-indexeddb). |
+| `HistoryEntry` | `id`, `savedAt`, `cliente`, `data`, `total`, `signature`, `company?`, `mode` + `doc` | União discriminada por `mode`: guarda o orçamento ou o recibo inteiro para gerar o PDF de novo. Ver [Histórico](#histórico-indexeddb). |
 | `LoadedImage` | `source`, `width`, `height` | Em `src/lib/document/canvas.ts`; imagem pronta para canvas. |
+| `CompanyId` | `"jm" \| "vision"` | Em `src/lib/companies.ts`; empresa que emite o documento. Ver [Empresas](#empresas). |
+
+## Empresas
+
+`src/lib/companies.ts` lista as empresas (`COMPANY_IDS`, `COMPANIES`) e
+`getCompany(id)` devolve os dados de uma delas:
+
+| Campo | Uso |
+| --- | --- |
+| `name` | Nome no seletor, na tela de login e no card do histórico. |
+| `phone`, `email`, `cnpj` | Linhas do rodapé do documento (`drawFooter`). Texto vazio não é impresso: a Vision Tech não tem e-mail no rodapé e usa o mesmo CNPJ da J&M. |
+| `signer` | Nome padrão abaixo da assinatura do recibo. |
+| `headerSrc` | Cabeçalho do documento em `public/` (`/header.png` na J&M, `/header-vision-tech.png` na Vision Tech). |
+| `titleColor` | Cor de “ORÇAMENTO”/“RECIBO” sobre a faixa (branco na faixa vermelha, quase preto na prata). |
+| `fallback` | Cores do cabeçalho desenhado quando a imagem não carrega. |
+| `accent` | Cor da borda do cabeçalho do site e da tela de login. |
+
+- **Regra (zod)**: `companyIdSchema` (`src/lib/schemas/company.ts`) aceita só as
+  empresas cadastradas. `parseCompanyId(valor)` lê o que veio do `localStorage` ou
+  do histórico e, se faltar ou for desconhecido, devolve **`"jm"`** — que era a
+  única empresa antes da troca existir. Testes em `src/lib/__tests__/lib.test.ts`.
+- A escolha fica em `jm_company` e é compartilhada por `useCompany`
+  (`src/lib/hooks/company.ts`); `saveCompany` dispara o evento `jm-company-change`
+  para o cabeçalho e a tela se atualizarem juntos.
+- **Assinatura por empresa**: cada empresa tem imagem, “remover fundo” e nome de
+  assinante próprios (`signatureKeys(company)`). A J&M usa as chaves antigas, sem
+  sufixo; a Vision Tech usa o sufixo `_vision`.
+- Para cadastrar outra empresa: acrescentar o id em `COMPANY_IDS`, os dados em
+  `COMPANIES`, o cabeçalho (1800×596 px, mesmo desenho) em `public/` e o caso
+  correspondente em `BrandLogo`.
 
 ### Valores padrão
 
@@ -161,7 +191,9 @@ usava não perca dados.
 | `jm_sig_raw` | data URL da assinatura ou `null` | `AppShell` |
 | `jm_sig_clean` | `boolean` | `AppShell` |
 | `jm_sig_name` | `string` | `AppShell` |
+| `jm_sig_raw_vision`, `jm_sig_clean_vision`, `jm_sig_name_vision` | assinatura da Vision Tech (mesmos formatos) | `AppShell` |
 | `jm_doc_id` | id do documento em edição (`string`) | `useDocumentId` |
+| `jm_company` | `"jm"` ou `"vision"` | `useCompany` / `saveCompany` (login, cabeçalho, “Abrir” no histórico) |
 
 ### Regras de leitura
 
@@ -207,6 +239,7 @@ cada um carrega o conteúdo completo. A biblioteca é o **Dexie**
 | `savedAt` | ISO completo da gravação; índice da ordenação e base do prazo. |
 | `cliente`, `data`, `total` | Cópia dos dados que o card mostra, para a lista não abrir o payload. |
 | `signature` | `SignatureSettings` usada no documento; sem ela o recibo redesenhado sairia sem assinatura. |
+| `company` | Empresa que emitiu o documento. Opcional: entradas gravadas antes da troca de empresa não têm e são lidas como J&M (`parseCompanyId`). |
 | `doc` | `BudgetDoc` ou `ReceiptDoc` completo — o que basta para **gerar o PDF de novo**. |
 
 - **O arquivo nunca é guardado**: PDF e PNG são gerados sob demanda a partir de

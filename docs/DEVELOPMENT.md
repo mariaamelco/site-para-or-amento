@@ -72,8 +72,11 @@ catálogo, destaque, totais, validação zod do orçamento, produto já adiciona
 validade do documento (orçamento e recibo), `documentName`, Sellers/tolerância, as
 duas camadas da busca, a validação do cliente (`src/lib/unit/form.test.ts` cobre
 `formErrors`, `markDirty`, `formIsValid`, `isFieldInvalid` e `clientFieldsSchema`)
-e as regras do histórico (`src/lib/schemas/history.ts` + `src/lib/history.ts`:
-entrada salva por modo, texto do “pedir orçamento” e o prazo de 30 dias).
+as regras do histórico (`src/lib/schemas/history.ts` + `src/lib/history.ts`:
+entrada salva por modo, texto do “pedir orçamento” e o prazo de 30 dias) e a
+empresa emissora (`src/lib/schemas/company.ts`: empresas aceitas, valor
+desconhecido volta para a J&M, chaves de assinatura por empresa e entrada antiga
+do histórico sem empresa).
 
 No Playwright, `e2e/client-fields.spec.ts` cobre o erro do cliente e o CNPJ,
 `e2e/budget-items.spec.ts` cobre quantidade/valor unitário zerados (borda, mensagem
@@ -81,7 +84,12 @@ e erro por linha), `e2e/export-gating.spec.ts` cobre o bloqueio de PDF/imagem/c�
 enquanto o documento tem erro e `e2e/history.spec.ts` cobre o filtro padrão, o card
 criado pela exportação, a cópia do “pedir orçamento”, o PDF gerado a partir do que
 está salvo e a virtualização da lista (60 entradas semeadas: monta só uma parte e
-alcança a última ao rolar).
+alcança a última ao rolar). `e2e/company.spec.ts` cobre a escolha da empresa no
+login, a troca pelo cabeçalho (a faixa do cabeçalho na prévia muda de vermelho
+para prata), o nome de assinante separado por empresa e a empresa gravada no
+histórico. `e2e/share.spec.ts` cobre a entrega: no celular, o compartilhamento
+recebe só o arquivo (sem link nem texto) e, se pedir outro toque, aparece
+“Enviar arquivo”; no computador, o arquivo é baixado.
 
 O IndexedDB não tem teste unitário (depende do navegador): o comportamento de
 gravar, listar e expirar é coberto pelo `e2e/history.spec.ts`.
@@ -95,7 +103,7 @@ gravar, listar e expirar é coberto pelo `e2e/history.spec.ts`.
 | Componente/página | `bun run typecheck` + `bun run lint` |
 | Formulário/validação/exportação | `bun run typecheck` + `bun test` + `bun run test:e2e` |
 | Histórico (rota, IndexedDB, cards) | `bun run typecheck` + `bun test` + `bun run test:e2e` |
-| Documento/PDF | `bun run typecheck` + `bun test` + conferir prévia e PDF manualmente |
+| Documento/PDF | `bun run typecheck` + `bun test` + conferir prévia e PDF manualmente (nas duas empresas) |
 | Catálogo/script | `bun scripts/atualizar-catalogo.mjs` (quando seguro) + `bun test` |
 | Versão/deploy | `bun run build` |
 

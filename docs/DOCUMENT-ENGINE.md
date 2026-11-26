@@ -19,7 +19,7 @@ em `<canvas>`. Não há HTML de impressão nem biblioteca de PDF.
 
 | Arquivo | Papel |
 | --- | --- |
-| `constants.ts` | Empresa, tamanho da página, cores, fontes e escala de exportação. |
+| `constants.ts` | Tamanho da página, cores, fontes e escala de exportação. Os dados de cada empresa ficam em `src/lib/companies.ts`. |
 | `canvas.ts` | `LoadedImage`, carregamento de imagem, fonte, texto espaçado, quebra de linha, linhas, `fitText`, `canvasToBlob`, `createPageCanvas`. |
 | `render.ts` | Escolhe orçamento ou recibo e devolve as páginas. |
 | `budget.ts` | Layout, densidade e paginação do orçamento. |
@@ -28,9 +28,9 @@ em `<canvas>`. Não há HTML de impressão nem biblioteca de PDF.
 | `table.ts` | Cabeçalho da tabela com títulos centralizados e espaçados. |
 | `photos.ts` | Cache e recorte das fotos dos produtos. |
 | `signature.ts` | Redução, remoção de fundo e recorte da assinatura. |
-| `assets.ts` | Carrega `/header.png` uma vez e espera as fontes. |
+| `assets.ts` | Carrega o cabeçalho de cada empresa (`ensureHeaderImage(company)`, uma vez por empresa) e espera as fontes. |
 | `pdf.ts` | Monta o arquivo PDF manualmente (JPEG por página). |
-| `download.ts` | Nome do arquivo e download via `<a download>`. |
+| `download.ts` | Nome do arquivo e entrega: baixa no computador, compartilha só o arquivo no celular (`deliverFiles`). |
 
 ## Pipeline
 
@@ -45,7 +45,7 @@ flowchart LR
   E --> G["canvasToBlob (PNG)"]
   F --> H[Blob application/pdf]
   G --> I[Blob image/png]
-  H --> J[documentName + downloadBlob]
+  H --> J[documentName + deliverFiles]
   I --> J
 ```
 
@@ -116,11 +116,19 @@ Escolhe a primeira em que tudo cabe em uma página; se nenhuma couber, pagina.
 
 ## Cabeçalho, rodapé e helpers (`header.ts`, `table.ts`, `canvas.ts`)
 
-- `drawHeader` pinta a página de branco e desenha `/header.png` na largura total;
-  sem imagem, usa um fallback preto/vermelho. O título (“ORÇAMENTO”/“RECIBO”) é
-  branco, 26 pt, com espaçamento de 9.75 pt.
-- `drawFooter` imprime contato, telefone, e-mail e CNPJ centralizados a partir de
-  `771.2`.
+- `drawHeader(ctx, title, header, company)` pinta a página de branco e desenha o
+  cabeçalho da empresa na largura total; sem imagem, usa as cores
+  `company.fallback`. O título (“ORÇAMENTO”/“RECIBO”) usa `company.titleColor`
+  (branco na J&M, `#111` na Vision Tech), 26 pt, com espaçamento de 9.75 pt.
+- Os dois cabeçalhos têm **1800×596 px** e o mesmo desenho: faixa preta com a
+  marca e linhas diagonais (até 472 px) e faixa do título embaixo — vermelha na
+  J&M (`public/header.png`), prata na Vision Tech (`public/header-vision-tech.png`,
+  montado a partir da logo enviada).
+- `drawFooter(ctx, company)` imprime contato, telefone, e-mail e CNPJ da empresa
+  centralizados a partir de `771.2`, pulando linhas vazias (a Vision Tech não tem
+  e-mail).
+- `renderPages` recebe `company` (`CompanyId`) em `RenderInput`; `renderExportPages`
+  recebe em `ExportInput` e carrega o cabeçalho certo.
 - `drawClient` desenha “Data:”, “Cliente:” e, se ligado, “CNPJ:” com linhas de
   preenchimento. Nome longo é truncado com `fitText`.
 - `drawTotalBox` desenha retângulo centralizado de 30.2 pt de altura e largura mínima
@@ -177,10 +185,27 @@ Fotos nunca aparecem no recibo.
 Consequência: o PDF não tem texto selecionável nem fonte embutida — é imagem. Isso é
 intencional e deve ser preservado.
 
+## Entrega: baixar ou compartilhar
+
+`deliverFiles(files)` (`download.ts`) decide como entregar o PDF/PNG:
+
+- **Celular/tablet** (`pointer: coarse` + `navigator.share` + `canShare({ files })`):
+  abre a tela de compartilhar do sistema com **só os arquivos**
+  (`navigator.share({ files })`, sem `url` nem `text`). Baixar por
+  `<a download href="blob:…">` no iPhone fazia o WhatsApp receber também o endereço
+  `blob:https://…`.
+- Se o sistema recusar por falta de toque recente (`NotAllowedError` — gerar o PDF
+  com fotos pode demorar), devolve `"needs-tap"` e a tela abre `ShareFilesDialog`
+  com o botão **Enviar arquivo**. Cancelar (`AbortError`) devolve `"cancelled"`.
+- **Computador**: `downloadBlob` com `<a download>`, um arquivo por vez com 250 ms
+  de intervalo.
+- Coberto por `e2e/share.spec.ts`.
+
 ## PNG, cópia e nome do arquivo
 
-- **PNG**: uma imagem por página; downloads com 250 ms de intervalo para o navegador
-  não bloquear múltiplos arquivos.
+- **PNG**: uma imagem por página; no computador, downloads com 250 ms de intervalo
+  para o navegador não bloquear múltiplos arquivos; no celular, todas as páginas
+  vão juntas para a tela de compartilhar.
 - **Copiar imagem**: usa `ClipboardItem` com a primeira página. Sem suporte ou em
   erro, abre `ImagesDialog` com data URLs para salvar manualmente.
 - **Nome** (`documentName`): `"Orçamento|Recibo - Cliente - dd-mm-aaaa (página N).ext"`.

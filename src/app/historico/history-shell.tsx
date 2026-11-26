@@ -20,7 +20,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { documentName, downloadBlob } from "@/lib/document/download";
+import { deliverFiles, documentName, toFile } from "@/lib/document/download";
+import { getCompany } from "@/lib/companies";
+import { parseCompanyId } from "@/lib/schemas/company";
+import { ShareFilesDialog } from "@/components/share-files-dialog";
 import { loadSignature, renderExportPages } from "@/lib/document/export";
 import { buildPDF } from "@/lib/document/pdf";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
@@ -55,6 +58,7 @@ async function renderEntryPages(
     rec: entry.mode === "rec" ? entry.doc : defaultReceipt(),
     signature,
     signerName: entry.signature.name,
+    company: parseCompanyId(entry.company),
   });
 }
 
@@ -92,7 +96,8 @@ function HistoryCard({
           </p>
           <p className="text-[12.5px] text-muted-foreground">
             {brDate(entry.data)} ·{" "}
-            {entry.mode === "orc" ? "Orçamento" : "Recibo"}
+            {entry.mode === "orc" ? "Orçamento" : "Recibo"} ·{" "}
+            {getCompany(parseCompanyId(entry.company)).name}
           </p>
           <p className="mt-1 text-sm font-semibold text-brand">
             {brl(entry.total)}
@@ -231,6 +236,8 @@ export function HistoryShell() {
   const { entries, loading, failed } = useHistoryEntries();
   const [filter, setFilter] = useState<Mode>("orc");
   const [notice, setNotice] = useState<Notice>(EMPTY_NOTICE);
+  /** PDF esperando um toque para abrir o compartilhamento do celular. */
+  const [pendingShare, setPendingShare] = useState<File[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const all = entries ?? [];
@@ -257,8 +264,18 @@ export function HistoryShell() {
       const pages = await renderEntryPages(entry);
       const blob = await buildPDF(pages);
       const name = documentName(entry.mode, entry.doc, "pdf", 1, pages.length);
-      downloadBlob(blob, name);
-      setNotice({ text: `Arquivo baixado: ${name}`, kind: "ok" });
+      const files = [toFile(blob, name)];
+      const result = await deliverFiles(files);
+      if (result === "needs-tap") {
+        setNotice({ text: `Pronto: ${name}. Toque em “Enviar arquivo”.`, kind: "" });
+        setPendingShare(files);
+      } else {
+        setNotice(
+          result === "cancelled"
+            ? { text: "Envio cancelado.", kind: "" }
+            : { text: `${result === "shared" ? "Enviado" : "Arquivo baixado"}: ${name}`, kind: "ok" },
+        );
+      }
     } catch {
       setNotice({
         text: "Não foi possível gerar o PDF. Tente novamente.",
@@ -372,6 +389,18 @@ export function HistoryShell() {
           </CardContent>
         </Card>
       )}
+      <ShareFilesDialog
+        files={pendingShare}
+        onDone={(result) => {
+          const name = pendingShare?.[0]?.name ?? "";
+          setPendingShare(null);
+          setNotice(
+            result === "shared"
+              ? { text: `Enviado: ${name}`, kind: "ok" }
+              : { text: "Envio cancelado.", kind: "" },
+          );
+        }}
+      />
     </main>
   );
 }

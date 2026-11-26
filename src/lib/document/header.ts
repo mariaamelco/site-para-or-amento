@@ -1,5 +1,6 @@
 import { fitText, hline, setFont, drawSpaced, type LoadedImage } from "@/lib/document/canvas";
-import { COMPANY, F_ARIAL, GREY, PH, PW } from "@/lib/document/constants";
+import type { Company } from "@/lib/companies";
+import { F_ARIAL, GREY, PH, PW } from "@/lib/document/constants";
 import { brDate, brl } from "@/lib/format";
 import type { BudgetDoc, ReceiptDoc } from "@/lib/types";
 
@@ -7,32 +8,29 @@ export function drawHeader(
   ctx: CanvasRenderingContext2D,
   title: string,
   header: LoadedImage | null,
+  company: Company,
 ): void {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, PW, PH);
   if (header) {
     ctx.drawImage(header.source, 0, 0, PW, (PW * header.height) / header.width);
   } else {
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = company.fallback.band;
     ctx.fillRect(0, 0, PW, 157);
-    ctx.fillStyle = "#c43333";
+    ctx.fillStyle = company.fallback.stripe;
     ctx.fillRect(0, 156.4, PW, 40.8);
   }
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = company.titleColor;
   setFont(ctx, 26, F_ARIAL);
   drawSpaced(ctx, title, 60.1, 181.5, 9.75, "left");
 }
 
-export function drawFooter(ctx: CanvasRenderingContext2D): void {
+export function drawFooter(ctx: CanvasRenderingContext2D, company: Company): void {
   ctx.fillStyle = "#000";
   setFont(ctx, 10, F_ARIAL);
   ctx.textAlign = "center";
-  const lines = [
-    "Contato",
-    COMPANY.phone,
-    COMPANY.email,
-    COMPANY.cnpj,
-  ];
+  // Linha vazia (ex.: Vision Tech sem e-mail) não deixa buraco no rodapé.
+  const lines = ["Contato", company.phone, company.email, company.cnpj].filter(Boolean);
   lines.forEach((text, i) => ctx.fillText(text, PW / 2, 771.2 + i * 14));
 }
 

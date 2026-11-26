@@ -7,6 +7,7 @@ import {
   type LoadedImage,
 } from "@/lib/document/canvas";
 import { F_ARIAL, F_OPEN, GREY, PW } from "@/lib/document/constants";
+import type { Company } from "@/lib/companies";
 import { drawClient, drawFooter, drawHeader, drawTotalBox } from "@/lib/document/header";
 import { getPhoto } from "@/lib/document/photos";
 import { drawTableHead } from "@/lib/document/table";
@@ -99,6 +100,7 @@ export function renderBudgetPages(
   doc: BudgetDoc,
   header: LoadedImage | null,
   scale: number,
+  company: Company,
 ): HTMLCanvasElement[] {
   const L = layoutBudget(doc);
   const probe = document.createElement("canvas").getContext("2d");
@@ -153,7 +155,7 @@ export function renderBudgetPages(
 
   return pages.map((page, pageIndex) => {
     const { canvas, ctx } = createPageCanvas(scale);
-    drawHeader(ctx, "ORÇAMENTO", header);
+    drawHeader(ctx, "ORÇAMENTO", header, company);
 
     let top: number;
     if (page.first) {
@@ -248,7 +250,7 @@ export function renderBudgetPages(
       ctx.textAlign = "right";
       ctx.fillText(`Página ${pageIndex + 1}/${pages.length}`, 550, 834);
     }
-    drawFooter(ctx);
+    drawFooter(ctx, company);
     return canvas;
   });
 }

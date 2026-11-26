@@ -6,7 +6,10 @@ import {
   parseCatalog,
   searchProducts,
 } from "@/lib/catalog";
+import { COMPANY_IDS, getCompany } from "@/lib/companies";
 import { documentName } from "@/lib/document/download";
+import { companyIdSchema, parseCompanyId } from "@/lib/schemas/company";
+import { signatureKeys } from "@/lib/storage";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
 import { brDate, fmt, maskCNPJ, parseMoney, productId } from "@/lib/format";
 import { historyEntryFrom, quoteText } from "@/lib/history";
@@ -335,6 +338,7 @@ describe("histórico: entrada salva", () => {
       mode: "orc",
       doc,
       signature,
+      company: "jm",
     });
 
     expect(entry.mode).toBe("orc");
@@ -352,19 +356,76 @@ describe("histórico: entrada salva", () => {
       mode: "rec",
       doc,
       signature,
+      company: "vision",
     });
 
     expect(entry.mode).toBe("rec");
+    expect(entry.company).toBe("vision");
     expect(entry.total).toBe(300);
   });
 
   test("a data de gravação pode ser injetada", () => {
     const entry = historyEntryFrom(
-      { id: "doc-3", mode: "orc", doc: defaultBudget(), signature },
+      { id: "doc-3", mode: "orc", doc: defaultBudget(), signature, company: "jm" },
       "2026-01-01T00:00:00.000Z",
     );
     expect(entry.savedAt).toBe("2026-01-01T00:00:00.000Z");
     expect(historyEntrySchema.safeParse(entry).success).toBe(true);
+  });
+});
+
+describe("empresa emissora", () => {
+  test("aceita só as empresas cadastradas", () => {
+    expect(companyIdSchema.safeParse("jm").success).toBe(true);
+    expect(companyIdSchema.safeParse("vision").success).toBe(true);
+    expect(companyIdSchema.safeParse("outra").success).toBe(false);
+  });
+
+  test("valor salvo ausente ou desconhecido volta para a J&M", () => {
+    expect(parseCompanyId("vision")).toBe("vision");
+    expect(parseCompanyId(null)).toBe("jm");
+    expect(parseCompanyId(undefined)).toBe("jm");
+    expect(parseCompanyId("xyz")).toBe("jm");
+  });
+
+  test("cada empresa tem cabeçalho e dados de rodapé próprios", () => {
+    for (const id of COMPANY_IDS) {
+      const company = getCompany(id);
+      expect(company.id).toBe(id);
+      expect(company.headerSrc).toMatch(/^\/.+\.png$/);
+      expect(company.phone && company.email && company.cnpj && company.signer).toBeTruthy();
+    }
+    expect(getCompany("jm").headerSrc).not.toBe(getCompany("vision").headerSrc);
+  });
+
+  test("J&M mantém as chaves antigas da assinatura; Vision Tech tem as suas", () => {
+    expect(signatureKeys("jm")).toEqual({
+      raw: "jm_sig_raw",
+      clean: "jm_sig_clean",
+      name: "jm_sig_name",
+    });
+    expect(signatureKeys("vision")).toEqual({
+      raw: "jm_sig_raw_vision",
+      clean: "jm_sig_clean_vision",
+      name: "jm_sig_name_vision",
+    });
+  });
+
+  test("entrada antiga do histórico, sem empresa, continua válida", () => {
+    const entry = historyEntryFrom(
+      {
+        id: "doc-4",
+        mode: "orc",
+        doc: defaultBudget(),
+        signature: { raw: null, clean: true, name: "" },
+        company: "jm",
+      },
+      "2026-01-01T00:00:00.000Z",
+    );
+    const legacy: Record<string, unknown> = { ...entry };
+    delete legacy.company;
+    expect(historyEntrySchema.safeParse(legacy).success).toBe(true);
+    expect(historyEntrySchema.safeParse({ ...entry, company: "outra" }).success).toBe(false);
   });
 });
 

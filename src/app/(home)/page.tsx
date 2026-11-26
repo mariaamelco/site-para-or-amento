@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useCompany } from "@/lib/hooks/company";
 
 /**
  * O app inteiro depende do localStorage (documentos, preços e assinatura),
@@ -19,5 +20,7 @@ const AppShell = dynamic(
 );
 
 export default function Home() {
-  return <AppShell />;
+  const [company] = useCompany();
+  // Trocar de empresa remonta o shell: a assinatura é lida das chaves da empresa.
+  return <AppShell key={company} company={company} />;
 }

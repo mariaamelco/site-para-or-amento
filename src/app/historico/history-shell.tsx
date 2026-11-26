@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { deliverFiles, documentName, toFile } from "@/lib/document/download";
+import { getCompany } from "@/lib/companies";
+import { parseCompanyId } from "@/lib/schemas/company";
 import { ShareFilesDialog } from "@/components/share-files-dialog";
 import { loadSignature, renderExportPages } from "@/lib/document/export";
 import { buildPDF } from "@/lib/document/pdf";
@@ -56,6 +58,7 @@ async function renderEntryPages(
     rec: entry.mode === "rec" ? entry.doc : defaultReceipt(),
     signature,
     signerName: entry.signature.name,
+    company: parseCompanyId(entry.company),
   });
 }
 
@@ -93,7 +96,8 @@ function HistoryCard({
           </p>
           <p className="text-[12.5px] text-muted-foreground">
             {brDate(entry.data)} ·{" "}
-            {entry.mode === "orc" ? "Orçamento" : "Recibo"}
+            {entry.mode === "orc" ? "Orçamento" : "Recibo"} ·{" "}
+            {getCompany(parseCompanyId(entry.company)).name}
           </p>
           <p className="mt-1 text-sm font-semibold text-brand">
             {brl(entry.total)}

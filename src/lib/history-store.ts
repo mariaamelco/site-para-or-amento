@@ -6,7 +6,8 @@ import {
   historyEntryExpired,
   historyEntrySchema,
 } from "@/lib/schemas/history";
-import { STORAGE_KEYS, saveJSON } from "@/lib/storage";
+import { parseCompanyId } from "@/lib/schemas/company";
+import { STORAGE_KEYS, saveCompany, saveJSON, signatureKeys } from "@/lib/storage";
 import type { HistoryEntry, Mode } from "@/lib/types";
 
 const DB_NAME = "jm_history";
@@ -98,9 +99,13 @@ export function restoreHistoryEntry(entry: HistoryEntry): void {
     entry.mode === "orc" ? STORAGE_KEYS.budget : STORAGE_KEYS.receipt,
     entry.doc,
   );
-  saveJSON(STORAGE_KEYS.signatureRaw, entry.signature.raw);
-  saveJSON(STORAGE_KEYS.signatureClean, entry.signature.clean);
-  saveJSON(STORAGE_KEYS.signatureName, entry.signature.name);
+  // A assinatura volta para a empresa do documento, que passa a ser a escolhida.
+  const company = parseCompanyId(entry.company);
+  const keys = signatureKeys(company);
+  saveJSON(keys.raw, entry.signature.raw);
+  saveJSON(keys.clean, entry.signature.clean);
+  saveJSON(keys.name, entry.signature.name);
+  saveCompany(company);
 
   try {
     localStorage.setItem(STORAGE_KEYS.documentId, entry.id);

@@ -7,6 +7,7 @@ import {
   type LoadedImage,
 } from "@/lib/document/canvas";
 import { F_ARIAL, F_OPEN, GREY } from "@/lib/document/constants";
+import type { Company } from "@/lib/companies";
 import { drawClient, drawFooter, drawHeader, drawTotalBox } from "@/lib/document/header";
 import { drawTableHead } from "@/lib/document/table";
 import { brDate, brl, parseMoney } from "@/lib/format";
@@ -31,6 +32,7 @@ export function renderReceiptPages(
   signature: LoadedImage | null,
   signerName: string,
   scale: number,
+  company: Company,
 ): HTMLCanvasElement[] {
   const xs = [58.2, 427.5, 540.8];
   const probe = document.createElement("canvas").getContext("2d");
@@ -100,7 +102,7 @@ export function renderReceiptPages(
 
   return pages.map((page, pageIndex) => {
     const { canvas, ctx } = createPageCanvas(scale);
-    drawHeader(ctx, "RECIBO", header);
+    drawHeader(ctx, "RECIBO", header, company);
 
     let top: number;
     if (page.first) {
@@ -188,7 +190,7 @@ export function renderReceiptPages(
       ctx.textAlign = "right";
       ctx.fillText(`Página ${pageIndex + 1}/${pages.length}`, 550, 834);
     }
-    drawFooter(ctx);
+    drawFooter(ctx, company);
     return canvas;
   });
 }

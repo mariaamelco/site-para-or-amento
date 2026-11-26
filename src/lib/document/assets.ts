@@ -1,16 +1,19 @@
+import { getCompany, type CompanyId } from "@/lib/companies";
 import { loadImage, toLoadedImage, type LoadedImage } from "@/lib/document/canvas";
 import { F_ARIAL, F_OPEN } from "@/lib/document/constants";
 
-let headerPromise: Promise<LoadedImage | null> | null = null;
+const headerPromises = new Map<CompanyId, Promise<LoadedImage | null>>();
 
-/** Carrega (uma única vez) o cabeçalho usado nos documentos. */
-export function ensureHeaderImage(): Promise<LoadedImage | null> {
-  if (!headerPromise) {
-    headerPromise = loadImage("/header.png").then((img) =>
+/** Carrega (uma única vez por empresa) o cabeçalho usado nos documentos. */
+export function ensureHeaderImage(company: CompanyId): Promise<LoadedImage | null> {
+  let promise = headerPromises.get(company);
+  if (!promise) {
+    promise = loadImage(getCompany(company).headerSrc).then((img) =>
       img ? toLoadedImage(img) : null,
     );
+    headerPromises.set(company, promise);
   }
-  return headerPromise;
+  return promise;
 }
 
 /** Espera as fontes usadas no canvas (Arimo/Open Sans) carregarem. */

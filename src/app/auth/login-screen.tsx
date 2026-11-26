@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BrandLogo } from "@/components/app/brand-logo";
+import { BrandLogo } from "@/components/brand-logo";
 import { checkCredentials, persistAuth } from "@/lib/auth";
 import { APP_VERSION } from "@/lib/version";
 
-export function LoginScreen({ onSignIn }: { onSignIn: () => void }) {
+export function LoginScreen() {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [keep, setKeep] = useState(false);
@@ -21,7 +21,8 @@ export function LoginScreen({ onSignIn }: { onSignIn: () => void }) {
       persistAuth(keep);
       setError("");
       setPass("");
-      onSignIn();
+      // Navegação completa para o proxy enxergar o cookie recém-gravado.
+      window.location.replace("/");
     } else {
       setError("Usuário ou senha incorretos.");
       document.getElementById("lg-pass")?.focus();

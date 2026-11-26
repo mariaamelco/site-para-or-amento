@@ -7,17 +7,17 @@ import dynamic from "next/dynamic";
  * então só pode ser renderizado no navegador.
  */
 const AppShell = dynamic(
-  () => import("@/components/app/app-shell").then((mod) => mod.AppShell),
+  () => import("./app-shell").then((mod) => mod.AppShell),
   {
     ssr: false,
     loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950 text-sm text-white/60">
+      <div className="flex flex-1 items-center justify-center py-16 text-sm text-neutral-500">
         Carregando…
       </div>
     ),
   },
 );
 
-export function AppClient() {
+export default function Home() {
   return <AppShell />;
 }

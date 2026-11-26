@@ -9,8 +9,23 @@ import {
 import { documentName } from "@/lib/document/download";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
 import { brDate, fmt, maskCNPJ, parseMoney, productId } from "@/lib/format";
+import { historyEntryFrom, quoteText } from "@/lib/history";
+import {
+  HISTORY_TTL_DAYS,
+  HISTORY_TTL_MS,
+  historyEntryExpired,
+  historyEntrySchema,
+} from "@/lib/schemas/history";
+import {
+  addedProductSlugs,
+  budgetFormSchema,
+  canAddBudgetProduct,
+  validateBudgetItems,
+} from "@/lib/schemas/budget";
+import { receiptFormSchema } from "@/lib/schemas/receipt";
+import { formErrors, formIsValid } from "@/lib/form";
 import { budgetTotal, receiptTotal } from "@/lib/totals";
-import type { BudgetDoc } from "@/lib/types";
+import type { BudgetDoc, BudgetItem } from "@/lib/types";
 
 describe("parseMoney", () => {
   test("aceita os formatos digitados pelo usuário", () => {
@@ -187,5 +202,230 @@ describe("documentName", () => {
   test("sem cliente o nome continua válido", () => {
     const doc = { ...defaultBudget(), cliente: "  ", data: "2026-02-09" };
     expect(documentName("rec", doc, "pdf", 1, 1)).toBe("Recibo - 09-02-2026.pdf");
+  });
+});
+
+const budgetItem = (patch: Partial<BudgetItem> = {}): BudgetItem => ({
+  id: "i1",
+  desc: "Cabo",
+  qty: "1",
+  unit: "10",
+  ...patch,
+});
+
+describe("validação do orçamento (zod)", () => {
+  test("exige pelo menos um item", () => {
+    const result = validateBudgetItems([]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("Adicione pelo menos um item ao orçamento.");
+  });
+
+  test("quantidade precisa ser maior que zero", () => {
+    const result = validateBudgetItems([budgetItem({ qty: "0" })]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("Item 1: Quantidade deve ser maior que zero.");
+    expect(result.fieldId).toBe("qty-i1");
+  });
+
+  test("valor unitário precisa ser maior que zero", () => {
+    const result = validateBudgetItems([
+      budgetItem({ id: "i1", unit: "10" }),
+      budgetItem({ id: "i2", unit: "0" }),
+    ]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe(
+      "Item 2: Valor unitário deve ser maior que zero.",
+    );
+    expect(result.fieldId).toBe("unit-i2");
+  });
+
+  test("aceita valores positivos no formato brasileiro", () => {
+    expect(
+      validateBudgetItems([budgetItem({ qty: "1,5", unit: "R$ 89,90" })]),
+    ).toEqual({ ok: true });
+  });
+});
+
+describe("validade do documento", () => {
+  test("orçamento com cliente e item válido", () => {
+    const doc: BudgetDoc = {
+      ...defaultBudget(),
+      cliente: "Padaria Aurora",
+      items: [budgetItem({ qty: "2", unit: "R$ 89,90" })],
+    };
+
+    expect(formErrors(budgetFormSchema, doc)).toEqual({});
+    expect(formIsValid(formErrors(budgetFormSchema, doc))).toBe(true);
+  });
+
+  test("orçamento vazio fica inválido", () => {
+    const errors = formErrors(budgetFormSchema, defaultBudget());
+
+    expect(errors.cliente).toBe("Informe o nome do cliente.");
+    expect(errors.items).toBe("Adicione pelo menos um item ao orçamento.");
+    expect(formIsValid(errors)).toBe(false);
+  });
+
+  test("quantidade zerada invalida o documento", () => {
+    const doc: BudgetDoc = {
+      ...defaultBudget(),
+      cliente: "Padaria Aurora",
+      items: [budgetItem({ qty: "0" })],
+    };
+    const errors = formErrors(budgetFormSchema, doc);
+
+    expect(errors.items).toBe("Quantidade deve ser maior que zero.");
+    expect(formIsValid(errors)).toBe(false);
+  });
+
+  test("recibo sem itens fica inválido", () => {
+    const doc = { ...defaultReceipt(), cliente: "Padaria Aurora", items: [] };
+
+    expect(formErrors(receiptFormSchema, doc).items).toBe(
+      "Adicione pelo menos um item ao recibo.",
+    );
+  });
+
+  test("recibo com cliente e item fica válido", () => {
+    const doc = { ...defaultReceipt(), cliente: "Padaria Aurora" };
+
+    expect(formIsValid(formErrors(receiptFormSchema, doc))).toBe(true);
+  });
+});
+
+describe("regra de produto já adicionado", () => {
+  test("o mesmo slug não pode entrar duas vezes", () => {
+    const items = [budgetItem({ slug: "camera-1" })];
+    expect(canAddBudgetProduct("camera-1", items)).toBe(false);
+    expect(canAddBudgetProduct("camera-2", items)).toBe(true);
+    expect(canAddBudgetProduct("camera-1", [])).toBe(true);
+  });
+
+  test("itens personalizados não bloqueiam produtos do catálogo", () => {
+    expect(canAddBudgetProduct("camera-1", [budgetItem()])).toBe(true);
+  });
+
+  test("addedProductSlugs lista só os itens vindos do catálogo", () => {
+    const slugs = addedProductSlugs([
+      budgetItem({ slug: "camera-1" }),
+      budgetItem(),
+      budgetItem({ slug: "cabo-2" }),
+    ]);
+    expect([...slugs]).toEqual(["camera-1", "cabo-2"]);
+  });
+});
+
+describe("histórico: entrada salva", () => {
+  const signature = { raw: null, clean: true, name: "Maria" };
+
+  test("orçamento guarda o total calculado", () => {
+    const doc = {
+      ...defaultBudget(),
+      cliente: "Padaria Aurora",
+      items: [
+        { id: "1", desc: "Cabo", qty: "2", unit: "10,50" },
+        { id: "2", desc: "Fonte", qty: "1", unit: "89,90" },
+      ],
+    };
+    const entry = historyEntryFrom({
+      id: "doc-1",
+      mode: "orc",
+      doc,
+      signature,
+    });
+
+    expect(entry.mode).toBe("orc");
+    expect(entry.cliente).toBe("Padaria Aurora");
+    expect(entry.total).toBeCloseTo(110.9);
+    expect(entry.signature).toEqual(signature);
+  });
+
+  test("recibo guarda o total dos valores lançados", () => {
+    const doc = defaultReceipt();
+    doc.cliente = "Mercado Bom Preço";
+    doc.items = [{ id: "1", desc: "Instalação", valor: "300,00" }];
+    const entry = historyEntryFrom({
+      id: "doc-2",
+      mode: "rec",
+      doc,
+      signature,
+    });
+
+    expect(entry.mode).toBe("rec");
+    expect(entry.total).toBe(300);
+  });
+
+  test("a data de gravação pode ser injetada", () => {
+    const entry = historyEntryFrom(
+      { id: "doc-3", mode: "orc", doc: defaultBudget(), signature },
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(entry.savedAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(historyEntrySchema.safeParse(entry).success).toBe(true);
+  });
+});
+
+describe("histórico: texto do pedido de orçamento", () => {
+  test("alinha a quantidade à direita de cada item", () => {
+    const doc = {
+      ...defaultBudget(),
+      items: [
+        { id: "1", desc: "Acionador manual", qty: "2", unit: "" },
+        { id: "2", desc: "Amplificador SLIM 2500", qty: "1", unit: "" },
+      ],
+    };
+    const lines = quoteText(doc).split("\n");
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe("Acionador manual         2x");
+    expect(lines[1]).toBe("Amplificador SLIM 2500   1x");
+  });
+
+  test("quantidade vazia conta como 1 e aceita decimais", () => {
+    const doc = {
+      ...defaultBudget(),
+      items: [
+        { id: "1", desc: "Cabo", qty: "", unit: "" },
+        { id: "2", desc: "Fonte", qty: "2,5", unit: "" },
+      ],
+    };
+    const lines = quoteText(doc).split("\n");
+
+    expect(lines[0]).toBe("Cabo    1x");
+    expect(lines[1]).toBe("Fonte   2,5x");
+  });
+
+  test("ignora itens sem descrição e devolve vazio sem itens", () => {
+    expect(quoteText({ ...defaultBudget(), items: [] })).toBe("");
+    expect(
+      quoteText({
+        ...defaultBudget(),
+        items: [{ id: "1", desc: "   ", qty: "1", unit: "" }],
+      }),
+    ).toBe("");
+  });
+});
+
+describe("histórico: prazo de 30 dias", () => {
+  test("a constante representa 30 dias", () => {
+    expect(HISTORY_TTL_DAYS).toBe(30);
+    expect(HISTORY_TTL_MS).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+
+  test("vence só depois de 30 dias", () => {
+    const savedAt = "2026-01-01T00:00:00.000Z";
+    const saved = Date.parse(savedAt);
+
+    expect(historyEntryExpired({ savedAt }, saved + HISTORY_TTL_MS)).toBe(false);
+    expect(historyEntryExpired({ savedAt }, saved + HISTORY_TTL_MS + 1)).toBe(
+      true,
+    );
+  });
+
+  test("data inválida conta como vencida", () => {
+    expect(historyEntryExpired({ savedAt: "ontem" })).toBe(true);
   });
 });

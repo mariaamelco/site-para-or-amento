@@ -1,0 +1,3 @@
+[test]
+# Os testes de interface rodam no Playwright (`bun run test:e2e`), não no Bun.
+pathIgnorePatterns = ["e2e/**"]

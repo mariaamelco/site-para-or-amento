@@ -10,27 +10,32 @@ import { MobilePreview } from "./mobile-preview";
 import { ReceiptForm } from "./receipt-form";
 import { useCatalog } from "@/lib/hooks/catalog";
 import { useDesktopPreview } from "@/lib/hooks/desktop-preview";
+import { useDocumentId } from "@/lib/hooks/document-id";
 import { useFlash } from "@/lib/hooks/flash";
 import { useHeaderImage } from "@/lib/hooks/header-image";
 import { usePersistedState } from "@/lib/hooks/persisted-state";
 import { useSignatureImage } from "@/lib/hooks/signature-image";
 import { canvasToBlob, type LoadedImage } from "@/lib/document/canvas";
-import { ensureHeaderImage, ensureFonts } from "@/lib/document/assets";
-import { COMPANY, EXPORT_SCALE, PW } from "@/lib/document/constants";
+import { ensureFonts } from "@/lib/document/assets";
+import { COMPANY, PW } from "@/lib/document/constants";
 import { documentName, downloadBlob } from "@/lib/document/download";
-import { ensurePhotos, setPhotoListener } from "@/lib/document/photos";
+import { renderExportPages as renderPagesForExport } from "@/lib/document/export";
 import { buildPDF } from "@/lib/document/pdf";
+import { setPhotoListener } from "@/lib/document/photos";
 import { renderPages } from "@/lib/document/render";
 import { defaultBudget, defaultReceipt } from "@/lib/documents";
 import { formErrors, formIsValid } from "@/lib/form";
+import { saveHistoryEntry } from "@/lib/history-store";
 import { budgetFormSchema, validateBudgetItems } from "@/lib/schemas/budget";
 import { receiptFormSchema } from "@/lib/schemas/receipt";
+import { STORAGE_KEYS } from "@/lib/storage";
 import type {
   BudgetDoc,
   Mode,
   Notice,
   PriceMemo,
   ReceiptDoc,
+  SignatureSettings,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -141,34 +146,34 @@ function DocumentPreview({
 const EMPTY_NOTICE: Notice = { text: "", kind: "" };
 
 export function AppShell() {
-  const [mode, setMode] = usePersistedState<Mode>("jm_mode", (saved) =>
+  const [mode, setMode] = usePersistedState<Mode>(STORAGE_KEYS.mode, (saved) =>
     saved === "rec" ? "rec" : "orc",
   );
-  const [orc, setOrc] = usePersistedState<BudgetDoc>("jm_orc", (saved) =>
+  const [orc, setOrc] = usePersistedState<BudgetDoc>(STORAGE_KEYS.budget, (saved) =>
     saved && Array.isArray(saved.items)
       ? { ...defaultBudget(), ...saved }
       : defaultBudget(),
   );
-  const [rec, setRec] = usePersistedState<ReceiptDoc>("jm_rec", (saved) =>
+  const [rec, setRec] = usePersistedState<ReceiptDoc>(STORAGE_KEYS.receipt, (saved) =>
     saved && Array.isArray(saved.items)
       ? { ...defaultReceipt(), ...saved, items: saved.items }
       : defaultReceipt(),
   );
   const [priceMemo, setPriceMemo] = usePersistedState<PriceMemo>(
-    "jm_prices",
+    STORAGE_KEYS.prices,
     (saved) => saved ?? {},
   );
 
   const [sigRaw, setSigRaw] = usePersistedState<string | null>(
-    "jm_sig_raw",
+    STORAGE_KEYS.signatureRaw,
     (saved) => (typeof saved === "string" && saved ? saved : null),
   );
   const [sigClean, setSigClean] = usePersistedState<boolean>(
-    "jm_sig_clean",
+    STORAGE_KEYS.signatureClean,
     (saved) => saved !== false,
   );
   const [sigName, setSigName] = usePersistedState<string>(
-    "jm_sig_name",
+    STORAGE_KEYS.signatureName,
     (saved) => saved || COMPANY.signer,
   );
   const {
@@ -187,6 +192,7 @@ export function AppShell() {
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
   const [images, setImages] = useState<HTMLCanvasElement[] | null>(null);
+  const { id: documentId, renew: renewDocumentId } = useDocumentId();
 
   const armTimer = useRef<number | null>(null);
 
@@ -226,14 +232,46 @@ export function AppShell() {
   }
 
   async function renderExportPages(): Promise<HTMLCanvasElement[]> {
-    await ensureFonts();
-    const head = header ?? (await ensureHeaderImage());
-    const withPhotos = mode === "orc" && orc.photos;
-    await ensurePhotos(mode === "orc" ? orc.items : [], withPhotos);
-    return renderPages(
-      { mode, orc, rec, header: head, signature, signerName: sigName },
-      EXPORT_SCALE,
-    );
+    return renderPagesForExport({
+      mode,
+      orc,
+      rec,
+      header,
+      signature,
+      signerName: sigName,
+    });
+  }
+
+  /**
+   * Guarda o documento no histórico. É chamado a cada exportação; o id do
+   * documento evita duplicar a entrada quando a pessoa exporta duas vezes.
+   */
+  async function saveToHistory() {
+    const signature: SignatureSettings = {
+      raw: sigRaw,
+      clean: sigClean,
+      name: sigName,
+    };
+
+    try {
+      if (mode === "orc") {
+        await saveHistoryEntry({
+          id: documentId,
+          mode: "orc",
+          doc: orc,
+          signature,
+        });
+      } else {
+        await saveHistoryEntry({
+          id: documentId,
+          mode: "rec",
+          doc: rec,
+          signature,
+        });
+      }
+    } catch {
+      // O histórico é um extra: sem IndexedDB a exportação continua funcionando.
+    }
   }
 
   const currentDoc = mode === "orc" ? orc : rec;
@@ -252,6 +290,7 @@ export function AppShell() {
       const blob = await buildPDF(pages);
       const name = documentName(mode, currentDoc, "pdf", 1, pages.length);
       downloadBlob(blob, name);
+      await saveToHistory();
       showNotice(`Arquivo baixado: ${name}`, "ok");
     } catch {
       showNotice("Não foi possível gerar o PDF. Tente novamente.", "err");
@@ -276,6 +315,7 @@ export function AppShell() {
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
       }
+      await saveToHistory();
       showNotice(
         names.length === 1
           ? `Arquivo baixado: ${names[0]}`
@@ -305,12 +345,14 @@ export function AppShell() {
         await navigator.clipboard.write([
           new ClipboardItem({ "image/png": blob }),
         ]);
+        await saveToHistory();
         showNotice(
           "Imagem copiada. Agora é só colar no WhatsApp.",
           "ok",
         );
       } else {
         setImages(pages);
+        await saveToHistory();
         showNotice("Toque e segure na imagem para salvar.", "ok");
       }
     } catch {
@@ -336,6 +378,7 @@ export function AppShell() {
     } else {
       setRec(defaultReceipt());
     }
+    renewDocumentId();
     showNotice("Formulário limpo.", "ok");
     focusField(mode === "orc" ? "o-cliente" : "r-cliente");
   }

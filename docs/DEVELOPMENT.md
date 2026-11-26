@@ -79,8 +79,9 @@ No Playwright, `e2e/client-fields.spec.ts` cobre o erro do cliente e o CNPJ,
 `e2e/budget-items.spec.ts` cobre quantidade/valor unitário zerados (borda, mensagem
 e erro por linha), `e2e/export-gating.spec.ts` cobre o bloqueio de PDF/imagem/cópia
 enquanto o documento tem erro e `e2e/history.spec.ts` cobre o filtro padrão, o card
-criado pela exportação, a cópia do “pedir orçamento” e o PDF gerado a partir do que
-está salvo.
+criado pela exportação, a cópia do “pedir orçamento”, o PDF gerado a partir do que
+está salvo e a virtualização da lista (60 entradas semeadas: monta só uma parte e
+alcança a última ao rolar).
 
 O IndexedDB não tem teste unitário (depende do navegador): o comportamento de
 gravar, listar e expirar é coberto pelo `e2e/history.spec.ts`.

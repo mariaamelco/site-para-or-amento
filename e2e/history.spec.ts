@@ -129,3 +129,76 @@ test.describe("histórico: PDF gerado de novo", () => {
     );
   });
 });
+
+test.describe("histórico: lista virtualizada", () => {
+  const SEEDED = 60;
+
+  test("monta só os cards visíveis e alcança o último ao rolar", async ({
+    page,
+  }) => {
+    await page.goto("/historico");
+    await expect(
+      page.getByText("Nenhum orçamento salvo ainda."),
+    ).toBeVisible();
+
+    // semeia direto no IndexedDB (o banco já foi criado pelo Dexie)
+    await page.evaluate(async (seeded) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("jm_history");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+
+      const tx = db.transaction("entries", "readwrite");
+      const store = tx.objectStore("entries");
+      for (let i = 0; i < seeded; i++) {
+        const cliente = `Cliente ${i}`;
+        store.put({
+          mode: "orc",
+          id: `seed-${i}`,
+          savedAt: new Date(Date.now() - i * 60_000).toISOString(),
+          cliente,
+          data: "2026-02-09",
+          total: 100 + i,
+          signature: { raw: null, clean: true, name: "" },
+          doc: {
+            cliente,
+            data: "2026-02-09",
+            cnpjOn: false,
+            cnpj: "",
+            items: [
+              { id: `seed-item-${i}`, desc: "Banner 3x2 m", qty: "1", unit: "100,00" },
+            ],
+            unitCol: false,
+            colTitle: "",
+            obs: "",
+            totMode: "auto",
+            totManual: "",
+            photos: false,
+          },
+        });
+      }
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve(null);
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }, SEEDED);
+
+    await page.reload();
+    await expect(page.getByText("Cliente 0")).toBeVisible();
+
+    const cards = page.locator("[data-history-id]");
+    const mounted = await cards.count();
+    expect(mounted).toBeGreaterThan(0);
+    expect(mounted).toBeLessThan(SEEDED);
+
+    const list = page.locator("[data-history-list]");
+    await list.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+
+    await expect(page.getByText(`Cliente ${SEEDED - 1}`)).toBeVisible();
+    expect(await cards.count()).toBeLessThan(SEEDED);
+  });
+});

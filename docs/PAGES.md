@@ -74,7 +74,7 @@ e pelos dois modos.
 | `AppHeader` | `components/app-header.tsx` | Marca, atalho entre `/` e `/historico` (ícone muda com a rota) e sair; usado pelos dois layouts. | nenhum (lê `usePathname`) |
 | `HistoryPage` | `historico/page.tsx` | Ponto de entrada de `/historico`; carrega `HistoryShell` (`ssr: false`). | nenhum |
 | `HistoryLayout` | `historico/layout.tsx` | Fundo e cabeçalho da rota do histórico; contém `AppHeader`. | nenhum |
-| `HistoryShell` | `historico/history-shell.tsx` | Filtro orçamento/recibo, lista de cards e ações (abrir, baixar, pedir orçamento). Contém `HistoryCard`. | filtro, aviso, card ocupado |
+| `HistoryShell` | `historico/history-shell.tsx` | Filtro orçamento/recibo, lista de cards e ações (abrir, baixar, pedir orçamento). Contém `HistoryCard` e `HistoryList` (grade virtualizada). | filtro, aviso, card ocupado |
 | `LoginScreen` | `auth/login-screen.tsx` | Formulário de entrada; grava o cookie e navega para `/`. | usuário, senha, “manter conectado”, erro |
 | `BudgetForm` | `budget-form.tsx` | Compõe cliente, busca, itens e total do orçamento; edita os itens. Contém `ProductSearch`, `BudgetItems` e `AddProductSplitButton`. | nenhum (ref da busca) |
 | `ClientFields` | `client-fields.tsx` | Nome, data e CNPJ do cliente (usado nos dois modos). | nenhum |
@@ -179,6 +179,13 @@ correspondente.
 - Cada card (`HistoryCard`, declarado no topo de `history-shell.tsx`) mostra nome
   do cliente, data, tipo e valor, e traz no extremo direito o menu de três
   pontinhos (`DropdownMenu` de `src/components/ui`).
+- A lista é **virtualizada** (`HistoryList`, também no topo do arquivo) com
+  `useVirtualizer` do `@tanstack/react-virtual`: só os cards visíveis, mais a
+  folga de 3, são montados. A grade usa `lanes` — 1, 2 ou 3 colunas conforme a
+  largura da própria lista (cortes de 600 px e 1200 px), com `gap` de 12 px — e
+  a altura do card é medida (`measureElement`), partindo de 92 px.
+- Por causa da virtualização, a rolagem acontece **dentro da lista**
+  (`max-h-[calc(100dvh-12rem)]`), e não na página. Trocar de aba volta ao topo.
 - Ações do menu:
   - **Abrir**: `restoreHistoryEntry` devolve documento, modo, assinatura e id ao
     `localStorage` e navega para `/`.

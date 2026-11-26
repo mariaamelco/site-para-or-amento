@@ -20,7 +20,8 @@ Consequências diretas:
 
 Stack: Next.js 16 (App Router), React 19, TypeScript estrito, Tailwind CSS 4,
 shadcn/ui (`style: base-nova`) sobre Base UI, Lucide para ícones, `@floating-ui/react`
-para listas flutuantes e Dexie sobre IndexedDB para o histórico.
+para listas flutuantes, Dexie sobre IndexedDB para o histórico e
+`@tanstack/react-virtual` para virtualizar a lista do histórico.
 
 ## Camadas e dependências
 
@@ -281,11 +282,16 @@ Detalhes em [DOCUMENT-ENGINE.md](./DOCUMENT-ENGINE.md).
    `listHistoryEntries` (descartando o que passou de 30 dias).
 2. O filtro local (`orc` por padrão) separa orçamentos de recibos; cada card
    mostra cliente, data e total já gravados na entrada.
-3. **Abrir** usa `restoreHistoryEntry` (documento, modo, assinatura e id voltam ao
+3. `HistoryList` virtualiza a grade com `useVirtualizer`
+   (`@tanstack/react-virtual`): só os cards visíveis são montados. A altura vem
+   de `measureElement` (partindo de 92 px) e as colunas de `lanes` (1, 2 ou 3,
+   medidas pelo `ResizeObserver` da própria lista). Por isso a rolagem é da lista
+   (`overflow-y-auto`), não da página.
+4. **Abrir** usa `restoreHistoryEntry` (documento, modo, assinatura e id voltam ao
    `localStorage`) e navega para `/`.
-4. **Baixar** redesenha o documento salvo com `renderExportPages` + `loadSignature`
+5. **Baixar** redesenha o documento salvo com `renderExportPages` + `loadSignature`
    e baixa o PDF — o arquivo nunca fica guardado.
-5. **Pedir orçamento** monta o texto com `quoteText` e copia para a área de
+6. **Pedir orçamento** monta o texto com `quoteText` e copia para a área de
    transferência.
 
 Detalhes do modelo em [DATA-MODEL.md](./DATA-MODEL.md#histórico-indexeddb).

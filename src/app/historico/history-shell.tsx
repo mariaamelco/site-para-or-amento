@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Copy,
   Download,
@@ -31,6 +32,17 @@ import type { HistoryEntry, Mode, Notice } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const EMPTY_NOTICE: Notice = { text: "", kind: "" };
+
+/** Altura de partida do card; o valor real é medido depois da montagem. */
+const CARD_HEIGHT = 92;
+const CARD_GAP = 12;
+
+/** Colunas conforme a largura da lista (antes: 2 em `sm`, 3 em `xl`). */
+function columnsFor(width: number): number {
+  if (width >= 1200) return 3;
+  if (width >= 600) return 2;
+  return 1;
+}
 
 /** Redesenha o documento salvo na escala de exportação (~200 dpi). */
 async function renderEntryPages(
@@ -79,7 +91,8 @@ function HistoryCard({
             {entry.cliente || "Sem cliente"}
           </p>
           <p className="text-[12.5px] text-muted-foreground">
-            {brDate(entry.data)} · {entry.mode === "orc" ? "Orçamento" : "Recibo"}
+            {brDate(entry.data)} ·{" "}
+            {entry.mode === "orc" ? "Orçamento" : "Recibo"}
           </p>
           <p className="mt-1 text-sm font-semibold text-brand">
             {brl(entry.total)}
@@ -115,6 +128,101 @@ function HistoryCard({
         </DropdownMenu>
       </CardContent>
     </Card>
+  );
+}
+
+interface HistoryListProps {
+  entries: HistoryEntry[];
+  filter: Mode;
+  busy: boolean;
+  onOpen: (entry: HistoryEntry) => void;
+  onDownload: (entry: HistoryEntry) => void;
+  onQuote: (entry: HistoryEntry) => void;
+}
+
+/** Grade virtualizada: só os cards visíveis (mais a folga) são montados. */
+function HistoryList({
+  entries,
+  filter,
+  busy,
+  onOpen,
+  onDownload,
+  onQuote,
+}: HistoryListProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(1);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    // a própria lista decide as colunas: ela é limitada a max-w-[1280px]
+    const update = () => setColumns(columnsFor(element.clientWidth));
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => CARD_HEIGHT,
+    getItemKey: (index) => {
+      const entry = entries[index];
+      return entry ? `${entry.mode}-${entry.id}` : index;
+    },
+    lanes: columns,
+    gap: CARD_GAP,
+    overscan: 3,
+  });
+
+  // trocar de aba recomeça a leitura do topo
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [filter]);
+
+  return (
+    <div
+      ref={scrollRef}
+      data-history-list=""
+      className="max-h-[calc(100dvh-12rem)] overflow-y-auto overscroll-contain"
+    >
+      <div
+        className="relative w-full"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((item) => {
+          const entry = entries[item.index];
+          if (!entry) return null;
+
+          return (
+            <div
+              key={item.key}
+              ref={virtualizer.measureElement}
+              data-index={item.index}
+              className="absolute top-0"
+              style={{
+                left: `${(item.lane * 100) / columns}%`,
+                width: `${100 / columns}%`,
+                paddingLeft: item.lane === 0 ? 0 : CARD_GAP / 2,
+                paddingRight: item.lane === columns - 1 ? 0 : CARD_GAP / 2,
+                transform: `translateY(${item.start}px)`,
+              }}
+            >
+              <HistoryCard
+                entry={entry}
+                busy={busy}
+                onOpen={() => onOpen(entry)}
+                onDownload={() => onDownload(entry)}
+                onQuote={() => onQuote(entry)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -187,7 +295,7 @@ export function HistoryShell() {
 
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 py-4">
-      <div className="mb-3 flex flex-wrap items-end gap-3">
+      <div className="mb-3 flex flex-col sm:flex-row flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-neutral-900">Histórico</h1>
           <p className="text-[13px] text-muted-foreground">
@@ -241,18 +349,14 @@ export function HistoryShell() {
           Não foi possível abrir o histórico neste navegador.
         </p>
       ) : visible.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visible.map((entry) => (
-            <HistoryCard
-              key={`${entry.mode}-${entry.id}`}
-              entry={entry}
-              busy={busyId !== null}
-              onOpen={() => handleOpen(entry)}
-              onDownload={() => void handleDownload(entry)}
-              onQuote={() => void handleQuote(entry)}
-            />
-          ))}
-        </div>
+        <HistoryList
+          entries={visible}
+          filter={filter}
+          busy={busyId !== null}
+          onOpen={handleOpen}
+          onDownload={(entry) => void handleDownload(entry)}
+          onQuote={(entry) => void handleQuote(entry)}
+        />
       ) : (
         <Card>
           <CardContent className="grid gap-1 py-6 text-center">
@@ -262,8 +366,8 @@ export function HistoryShell() {
                 : "Nenhum recibo salvo ainda."}
             </p>
             <p className="text-[13px] text-muted-foreground">
-              O documento entra aqui ao baixar o PDF, baixar a imagem ou copiar a
-              imagem.
+              O documento entra aqui ao baixar o PDF, baixar a imagem ou copiar
+              a imagem.
             </p>
           </CardContent>
         </Card>

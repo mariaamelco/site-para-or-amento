@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { companyIdSchema } from "@/lib/schemas/company";
 import type { HistoryEntry } from "@/lib/types";
 
 /** Os documentos salvos ficam disponíveis por 30 dias. */
@@ -60,6 +61,7 @@ const baseShape = {
   data: z.string(),
   total: z.number(),
   signature: signatureShape,
+  company: companyIdSchema.optional(),
 };
 
 /** Entrada do histórico: o documento salvo e os dados que o card mostra. */

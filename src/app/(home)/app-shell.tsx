@@ -17,8 +17,15 @@ import { usePersistedState } from "@/lib/hooks/persisted-state";
 import { useSignatureImage } from "@/lib/hooks/signature-image";
 import { canvasToBlob, type LoadedImage } from "@/lib/document/canvas";
 import { ensureFonts } from "@/lib/document/assets";
-import { COMPANY, PW } from "@/lib/document/constants";
-import { documentName, downloadBlob } from "@/lib/document/download";
+import { getCompany, type CompanyId } from "@/lib/companies";
+import { PW } from "@/lib/document/constants";
+import {
+  deliverFiles,
+  documentName,
+  toFile,
+  type DeliverResult,
+} from "@/lib/document/download";
+import { ShareFilesDialog } from "@/components/share-files-dialog";
 import { renderExportPages as renderPagesForExport } from "@/lib/document/export";
 import { buildPDF } from "@/lib/document/pdf";
 import { setPhotoListener } from "@/lib/document/photos";
@@ -28,7 +35,7 @@ import { formErrors, formIsValid } from "@/lib/form";
 import { saveHistoryEntry } from "@/lib/history-store";
 import { budgetFormSchema, validateBudgetItems } from "@/lib/schemas/budget";
 import { receiptFormSchema } from "@/lib/schemas/receipt";
-import { STORAGE_KEYS } from "@/lib/storage";
+import { STORAGE_KEYS, signatureKeys } from "@/lib/storage";
 import type {
   BudgetDoc,
   Mode,
@@ -46,6 +53,7 @@ interface DocumentPreviewProps {
   header: LoadedImage | null;
   signature: LoadedImage | null;
   signerName: string;
+  company: CompanyId;
   /** Ocupa toda a altura do container (usado na prévia em tela cheia). */
   fill?: boolean;
 }
@@ -61,6 +69,7 @@ function DocumentPreview({
   header,
   signature,
   signerName,
+  company,
   fill = false,
 }: DocumentPreviewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -97,7 +106,7 @@ function DocumentPreview({
       const ratio = window.devicePixelRatio || 1;
       const scale = Math.max(1.2, (width * ratio) / PW);
       const canvases = renderPages(
-        { mode, orc, rec, header, signature, signerName },
+        { mode, orc, rec, header, signature, signerName, company },
         scale,
       );
       canvases.forEach((canvas, index) => {
@@ -115,7 +124,7 @@ function DocumentPreview({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [mode, orc, rec, header, signature, signerName, tick]);
+  }, [mode, orc, rec, header, signature, signerName, company, tick]);
 
   return (
     <div
@@ -145,7 +154,12 @@ function DocumentPreview({
 
 const EMPTY_NOTICE: Notice = { text: "", kind: "" };
 
-export function AppShell() {
+/**
+ * `company` vem da página, que remonta o shell ao trocar de empresa: a
+ * assinatura é lida das chaves da empresa nova.
+ */
+export function AppShell({ company }: { company: CompanyId }) {
+  const sigKeys = signatureKeys(company);
   const [mode, setMode] = usePersistedState<Mode>(STORAGE_KEYS.mode, (saved) =>
     saved === "rec" ? "rec" : "orc",
   );
@@ -165,16 +179,16 @@ export function AppShell() {
   );
 
   const [sigRaw, setSigRaw] = usePersistedState<string | null>(
-    STORAGE_KEYS.signatureRaw,
+    sigKeys.raw,
     (saved) => (typeof saved === "string" && saved ? saved : null),
   );
   const [sigClean, setSigClean] = usePersistedState<boolean>(
-    STORAGE_KEYS.signatureClean,
+    sigKeys.clean,
     (saved) => saved !== false,
   );
   const [sigName, setSigName] = usePersistedState<string>(
-    STORAGE_KEYS.signatureName,
-    (saved) => saved || COMPANY.signer,
+    sigKeys.name,
+    (saved) => saved || getCompany(company).signer,
   );
   const {
     image: signature,
@@ -182,7 +196,7 @@ export function AppShell() {
     setNotice: setSigNotice,
   } = useSignatureImage(sigRaw, sigClean);
 
-  const header = useHeaderImage();
+  const header = useHeaderImage(company);
   const { products, loading: catalogLoading, failed: catalogFailed } =
     useCatalog();
   const { desktop, previewOpen, setPreviewOpen } = useDesktopPreview();
@@ -192,6 +206,8 @@ export function AppShell() {
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
   const [images, setImages] = useState<HTMLCanvasElement[] | null>(null);
+  /** Arquivos esperando um toque para abrir o compartilhamento do celular. */
+  const [pendingShare, setPendingShare] = useState<File[] | null>(null);
   const { id: documentId, renew: renewDocumentId } = useDocumentId();
 
   const armTimer = useRef<number | null>(null);
@@ -239,6 +255,7 @@ export function AppShell() {
       header,
       signature,
       signerName: sigName,
+      company,
     });
   }
 
@@ -260,6 +277,7 @@ export function AppShell() {
           mode: "orc",
           doc: orc,
           signature,
+          company,
         });
       } else {
         await saveHistoryEntry({
@@ -267,6 +285,7 @@ export function AppShell() {
           mode: "rec",
           doc: rec,
           signature,
+          company,
         });
       }
     } catch {
@@ -281,6 +300,24 @@ export function AppShell() {
   const formValid =
     mode === "orc" ? formIsValid(orcErrors) : formIsValid(recErrors);
 
+  /** Mensagem depois de baixar/compartilhar; no celular pode pedir mais um toque. */
+  function reportDelivery(result: DeliverResult, files: File[]) {
+    const what = files.length === 1 ? files[0].name : `${files.length} arquivos`;
+    if (result === "downloaded") {
+      showNotice(
+        files.length === 1 ? `Arquivo baixado: ${what}` : `${what} baixados.`,
+        "ok",
+      );
+    } else if (result === "shared") {
+      showNotice(`Enviado: ${what}`, "ok");
+    } else if (result === "cancelled") {
+      showNotice("Envio cancelado.");
+    } else {
+      showNotice(`Pronto: ${what}. Toque em “Enviar arquivo”.`);
+      setPendingShare(files);
+    }
+  }
+
   async function handleDownloadPdf() {
     if (busy || !validate()) return;
     setBusy(true);
@@ -289,9 +326,10 @@ export function AppShell() {
       const pages = await renderExportPages();
       const blob = await buildPDF(pages);
       const name = documentName(mode, currentDoc, "pdf", 1, pages.length);
-      downloadBlob(blob, name);
+      const files = [toFile(blob, name)];
+      const result = await deliverFiles(files);
       await saveToHistory();
-      showNotice(`Arquivo baixado: ${name}`, "ok");
+      reportDelivery(result, files);
     } catch {
       showNotice("Não foi possível gerar o PDF. Tente novamente.", "err");
     } finally {
@@ -305,23 +343,15 @@ export function AppShell() {
     showNotice("Gerando imagem…");
     try {
       const pages = await renderExportPages();
-      const names: string[] = [];
+      const files: File[] = [];
       for (let index = 0; index < pages.length; index++) {
         const blob = await canvasToBlob(pages[index], "image/png");
         const name = documentName(mode, currentDoc, "png", index + 1, pages.length);
-        downloadBlob(blob, name);
-        names.push(name);
-        if (index < pages.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
+        files.push(toFile(blob, name));
       }
+      const result = await deliverFiles(files);
       await saveToHistory();
-      showNotice(
-        names.length === 1
-          ? `Arquivo baixado: ${names[0]}`
-          : `${names.length} arquivos baixados.`,
-        "ok",
-      );
+      reportDelivery(result, files);
     } catch {
       showNotice("Não foi possível gerar a imagem. Tente novamente.", "err");
     } finally {
@@ -468,6 +498,7 @@ export function AppShell() {
                 header={header}
                 signature={signature}
                 signerName={sigName}
+                company={company}
               />
             </div>
           ) : null}
@@ -487,12 +518,21 @@ export function AppShell() {
             header={header}
             signature={signature}
             signerName={sigName}
+            company={company}
             fill
           />
         </MobilePreview>
       )}
 
       <ImagesDialog pages={images} onClose={() => setImages(null)} />
+      <ShareFilesDialog
+        files={pendingShare}
+        onDone={(result) => {
+          const files = pendingShare ?? [];
+          setPendingShare(null);
+          reportDelivery(result, files);
+        }}
+      />
     </>
   );
 }

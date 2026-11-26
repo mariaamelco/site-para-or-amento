@@ -1,4 +1,26 @@
-export function BrandLogo({ color = "#fff" }: { color?: string }) {
+/* eslint-disable @next/next/no-img-element */
+import type { CompanyId } from "@/lib/companies";
+
+/** Marca da empresa para fundo escuro (cabeçalho do site e tela de login). */
+export function BrandLogo({
+  company = "jm",
+  color = "#fff",
+}: {
+  company?: CompanyId;
+  color?: string;
+}) {
+  if (company === "vision") {
+    return (
+      <img
+        src="/logo-vision-tech.png"
+        alt="Vision Tech — Instalações & Segurança"
+        width={175}
+        height={48}
+        className="block h-10 w-auto"
+      />
+    );
+  }
+
   return (
     <div className="flex items-center gap-2.5 whitespace-nowrap font-semibold tracking-[0.14em]">
       <svg

@@ -1,3 +1,4 @@
+import type { CompanyId } from "@/lib/companies";
 import { ensureFonts, ensureHeaderImage } from "@/lib/document/assets";
 import type { LoadedImage } from "@/lib/document/canvas";
 import { EXPORT_SCALE } from "@/lib/document/constants";
@@ -17,6 +18,7 @@ export interface ExportInput {
   rec: ReceiptDoc;
   signature: LoadedImage | null;
   signerName: string;
+  company: CompanyId;
   /** Cabeçalho já carregado; sem ele, `ensureHeaderImage` busca de novo. */
   header?: LoadedImage | null;
 }
@@ -29,7 +31,7 @@ export async function renderExportPages(
   input: ExportInput,
 ): Promise<HTMLCanvasElement[]> {
   await ensureFonts();
-  const header = input.header ?? (await ensureHeaderImage());
+  const header = input.header ?? (await ensureHeaderImage(input.company));
   const withPhotos = input.mode === "orc" && input.orc.photos;
   await ensurePhotos(input.mode === "orc" ? input.orc.items : [], withPhotos);
 
@@ -41,6 +43,7 @@ export async function renderExportPages(
       header,
       signature: input.signature,
       signerName: input.signerName,
+      company: input.company,
     },
     EXPORT_SCALE,
   );

@@ -1,3 +1,5 @@
+import type { CompanyId } from "@/lib/companies";
+
 export type Mode = "orc" | "rec";
 
 export type TotMode = "auto" | "man";
@@ -73,6 +75,8 @@ interface HistoryEntryBase {
   total: number;
   /** Assinatura usada no recibo, necessária para redesenhar o PDF depois. */
   signature: SignatureSettings;
+  /** Empresa que emitiu o documento. Entradas antigas não têm: valem como J&M. */
+  company?: CompanyId;
 }
 
 /**

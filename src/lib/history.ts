@@ -1,3 +1,4 @@
+import type { CompanyId } from "@/lib/companies";
 import { qtyNum } from "@/lib/format";
 import { budgetTotal, receiptTotal } from "@/lib/totals";
 import type {
@@ -9,8 +10,8 @@ import type {
 
 /** Documento pronto para ser salvo: o restante da entrada é derivado dele. */
 export type HistoryDraft =
-  | { id: string; mode: "orc"; doc: BudgetDoc; signature: SignatureSettings }
-  | { id: string; mode: "rec"; doc: ReceiptDoc; signature: SignatureSettings };
+  | { id: string; mode: "orc"; doc: BudgetDoc; signature: SignatureSettings; company: CompanyId }
+  | { id: string; mode: "rec"; doc: ReceiptDoc; signature: SignatureSettings; company: CompanyId };
 
 /**
  * Monta a entrada do histórico. Cliente, data e total vêm do documento para a
@@ -26,6 +27,7 @@ export function historyEntryFrom(
     cliente: draft.doc.cliente,
     data: draft.doc.data,
     signature: draft.signature,
+    company: draft.company,
   };
 
   return draft.mode === "orc"

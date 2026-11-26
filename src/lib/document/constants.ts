@@ -1,9 +1,4 @@
-export const COMPANY = {
-  phone: "Telefone (47) 991463725",
-  email: "Email: jmsystem.itp@gmail.com",
-  cnpj: "CNPJ: 64.087.537/0001-13",
-  signer: "Juliana O. da Conceição",
-} as const;
+// Dados de cada empresa (rodapé, assinante, cabeçalho) ficam em `@/lib/companies`.
 
 /** Tamanho da página em pt (mesmo dos PDFs originais). */
 export const PW = 595.5;

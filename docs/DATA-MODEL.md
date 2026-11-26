@@ -28,7 +28,7 @@ Definidos em `src/lib/types.ts`.
 | Campo | Uso |
 | --- | --- |
 | `name` | Nome no seletor, na tela de login e no card do histórico. |
-| `phone`, `email`, `cnpj` | Linhas do rodapé do documento (`drawFooter`). |
+| `phone`, `email`, `cnpj` | Linhas do rodapé do documento (`drawFooter`). Texto vazio não é impresso: a Vision Tech não tem e-mail no rodapé e usa o mesmo CNPJ da J&M. |
 | `signer` | Nome padrão abaixo da assinatura do recibo. |
 | `headerSrc` | Cabeçalho do documento em `public/` (`/header.png` na J&M, `/header-vision-tech.png` na Vision Tech). |
 | `titleColor` | Cor de “ORÇAMENTO”/“RECIBO” sobre a faixa (branco na faixa vermelha, quase preto na prata). |

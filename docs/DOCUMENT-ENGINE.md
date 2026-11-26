@@ -125,7 +125,8 @@ Escolhe a primeira em que tudo cabe em uma página; se nenhuma couber, pagina.
   J&M (`public/header.png`), prata na Vision Tech (`public/header-vision-tech.png`,
   montado a partir da logo enviada).
 - `drawFooter(ctx, company)` imprime contato, telefone, e-mail e CNPJ da empresa
-  centralizados a partir de `771.2`.
+  centralizados a partir de `771.2`, pulando linhas vazias (a Vision Tech não tem
+  e-mail).
 - `renderPages` recebe `company` (`CompanyId`) em `RenderInput`; `renderExportPages`
   recebe em `ExportInput` e carrega o cabeçalho certo.
 - `drawClient` desenha “Data:”, “Cliente:” e, se ligado, “CNPJ:” com linhas de

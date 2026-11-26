@@ -393,9 +393,11 @@ describe("empresa emissora", () => {
       const company = getCompany(id);
       expect(company.id).toBe(id);
       expect(company.headerSrc).toMatch(/^\/.+\.png$/);
-      expect(company.phone && company.email && company.cnpj && company.signer).toBeTruthy();
+      expect(company.phone && company.cnpj && company.signer).toBeTruthy();
     }
     expect(getCompany("jm").headerSrc).not.toBe(getCompany("vision").headerSrc);
+    // A Vision Tech não imprime e-mail no rodapé.
+    expect(getCompany("vision").email).toBe("");
   });
 
   test("J&M mantém as chaves antigas da assinatura; Vision Tech tem as suas", () => {

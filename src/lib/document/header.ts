@@ -29,12 +29,8 @@ export function drawFooter(ctx: CanvasRenderingContext2D, company: Company): voi
   ctx.fillStyle = "#000";
   setFont(ctx, 10, F_ARIAL);
   ctx.textAlign = "center";
-  const lines = [
-    "Contato",
-    company.phone,
-    company.email,
-    company.cnpj,
-  ];
+  // Linha vazia (ex.: Vision Tech sem e-mail) não deixa buraco no rodapé.
+  const lines = ["Contato", company.phone, company.email, company.cnpj].filter(Boolean);
   lines.forEach((text, i) => ctx.fillText(text, PW / 2, 771.2 + i * 14));
 }
 

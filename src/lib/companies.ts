@@ -12,7 +12,7 @@ export interface Company {
   id: CompanyId;
   /** Nome curto, usado no seletor e no histórico. */
   name: string;
-  /** Linhas do rodapé do documento. */
+  /** Linhas do rodapé do documento; texto vazio não é impresso. */
   phone: string;
   email: string;
   cnpj: string;
@@ -44,11 +44,11 @@ export const COMPANIES: Record<CompanyId, Company> = {
   vision: {
     id: "vision",
     name: "Vision Tech",
-    // PENDENTE: dados da Vision Tech a confirmar.
-    phone: "Telefone (00) 000000000",
-    email: "Email: contato@visiontech.com.br",
-    cnpj: "CNPJ: 00.000.000/0000-00",
-    signer: "Vision Tech",
+    phone: "Telefone (47) 99770-6278",
+    // Sem e-mail no rodapé da Vision Tech.
+    email: "",
+    cnpj: "CNPJ: 64.087.537/0001-13",
+    signer: "Juliana O. da Conceição",
     headerSrc: "/header-vision-tech.png",
     titleColor: "#111",
     fallback: { band: "#000", stripe: "#c9cdd2" },
